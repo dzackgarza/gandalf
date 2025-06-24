@@ -130,7 +130,7 @@ def initialize_inspection_crew():
     print("Artisan Assembly: Inspection Crew initialized (placeholder).")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Attempting to initialize artisan crews (placeholders):")
     initialize_planning_crew()
     initialize_coding_crew()

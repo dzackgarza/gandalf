@@ -40,22 +40,8 @@ develop:
 	echo "# Main entry point" > main.py
 	touch gandalf_workshop/specs/data_models.py
 	echo "# Data models" > gandalf_workshop/specs/data_models.py
-	echo "class WorkshopManager:\n\
-    def commission_new_blueprint(self):\n        pass\n\
-    def request_product_generation_or_revision(self):\n        pass\n\
-    def initiate_quality_inspection(self):\n        pass\n\
-    def finalize_commission_and_deliver(self):\n        pass\n\
-    def request_blueprint_revision(self):\n        pass\n" > gandalf_workshop/workshop_manager.py
-	echo "from gandalf_workshop.workshop_manager import WorkshopManager\n\
-\n\
-def test_manager_methods():\n\
-    manager = WorkshopManager()\n\
-    assert manager is not None\n\
-    manager.commission_new_blueprint()\n\
-    manager.request_product_generation_or_revision()\n\
-    manager.initiate_quality_inspection()\n\
-    manager.finalize_commission_and_deliver()\n\
-    manager.request_blueprint_revision()\n" > gandalf_workshop/tests/test_workshop_manager.py
+	cp auditing/scaffold_templates/workshop_manager.template.py gandalf_workshop/workshop_manager.py
+	cp auditing/scaffold_templates/test_workshop_manager.template.py gandalf_workshop/tests/test_workshop_manager.py
 	@echo "✅ Placeholder code and scaffold generated."
 
 	@echo "--- [DEV] Running full audit pipeline ---"

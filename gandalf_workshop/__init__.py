@@ -6,6 +6,7 @@ It's like placing a sign on the main workshop building, identifying it
 and allowing its various departments (submodules) to be recognized
 and accessed systematically.
 """
+
 # You can make key components available at the package level if desired, e.g.:
 # from .workshop_manager import WorkshopManager
 # from .specs.data_models import BlueprintModel, InspectionReportModel

@@ -98,7 +98,7 @@ and its `blueprint.yaml`. Your goal is to produce a comprehensive
 # inspector prompt for different agent roles. For this scaffolding phase, the
 # three main ones are included.
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Planner Charter:\n", PLANNER_CHARTER_PROMPT)
     print("\nCoder Charter:\n", CODER_CHARTER_PROMPT)
     print("\nGeneral Inspector Charter:\n", GENERAL_INSPECTOR_CHARTER_PROMPT)

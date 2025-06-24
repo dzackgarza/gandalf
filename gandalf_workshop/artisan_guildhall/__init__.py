@@ -7,15 +7,16 @@ that guide the Artisans and the means to assemble (initialize) them for work.
 Making it a submodule allows for organized access to these core agent-related
 components.
 """
+
 from .prompts import (
     PLANNER_CHARTER_PROMPT,
     CODER_CHARTER_PROMPT,
-    GENERAL_INSPECTOR_CHARTER_PROMPT
+    GENERAL_INSPECTOR_CHARTER_PROMPT,
 )
 from .artisans import (
     initialize_planning_crew,
     initialize_coding_crew,
-    initialize_inspection_crew
+    initialize_inspection_crew,
 )
 
 __all__ = [
@@ -24,5 +25,5 @@ __all__ = [
     "GENERAL_INSPECTOR_CHARTER_PROMPT",
     "initialize_planning_crew",
     "initialize_coding_crew",
-    "initialize_inspection_crew"
+    "initialize_inspection_crew",
 ]
