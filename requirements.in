@@ -7,10 +7,9 @@ pytest
 pytest-cov
 flake8
 pyyaml
-bandit
 black
 mypy
-pip-audit
+pytest-bdd
 
 # For Research Report Commissions
 # (Assuming APIs are accessed via requests or specific client libraries)
