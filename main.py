@@ -79,3 +79,5 @@ def main():
 if __name__ == "__main__":
     # Metaphor: The workshop doors are opened, ready for new commissions.
     main()
+
+# Main entry point
