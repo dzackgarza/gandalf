@@ -1,0 +1,9 @@
+pydantic>=1.8,<2.0 # Pinning to Pydantic v1 for now as v2 has breaking changes, and original examples used v1 .json()
+# Add other core dependencies here as they become necessary, for example:
+# crewai
+# python-dotenv
+# langchain
+#
+# For development and testing:
+# pytest
+# flake8
