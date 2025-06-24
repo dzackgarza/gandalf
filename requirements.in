@@ -1,0 +1,32 @@
+# Core Orchestration & Agent Frameworks
+crewai
+langchain
+
+# For Software Development Commissions
+pytest
+pytest-cov
+flake8
+pyyaml
+bandit
+black
+mypy
+pip-audit
+
+# For Research Report Commissions
+# (Assuming APIs are accessed via requests or specific client libraries)
+requests
+beautifulsoup4
+# Add any specific academic API client libraries here, e.g.:
+# arxiv
+# semanticscholar
+
+# For Data Handling & RAG
+PyMuPDF
+chromadb
+# or
+# faiss-cpu # or faiss-gpu
+# sentence-transformers (often used with RAG for embeddings)
+
+# General Utilities
+python-dotenv
+gitpython
