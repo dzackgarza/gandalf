@@ -242,6 +242,123 @@ class WorkshopManager:
 # Note: Actual implementation will use CrewAI/AutoGen agent execution calls
 # within these conceptual methods. For example, `commission_new_blueprint` might
 # initialize and run a CrewAI "Planner Crew".
+
+    def initiate_strategic_review(
+        self,
+        commission_id: str,
+        blueprint_path: Path
+    ) -> Path:
+        """
+        Assigns a Blueprint to the Product Manager (PM) Agent for strategic review.
+        Metaphor: "Manager asks the Chief Strategist to validate the Head Draftsman's plans against the client's vision."
+        Args:
+            commission_id: The ID of the commission.
+            blueprint_path: Path to the blueprint.yaml that requires strategic review.
+        Returns:
+            Path to the generated PM_Review.json file, which contains the PM Agent's decision and rationale.
+        """
+        pass
+
+    def request_blueprint_strategic_revision(
+        self,
+        commission_id: str,
+        original_blueprint_path: Path,
+        pm_review_path: Path
+    ) -> Path:
+        """
+        Sends a Blueprint back to a Planner Artisan for revision based on strategic feedback from the PM Agent.
+        Metaphor: "Manager sends flawed design back to Design Studio with Chief Strategist's notes."
+        Args:
+            commission_id: The ID of the commission.
+            original_blueprint_path: Path to the blueprint that needs revision.
+            pm_review_path: Path to the PM_Review.json detailing required strategic changes.
+        Returns:
+            Path to the revised blueprint.yaml.
+        """
+        pass
 ```
+
+## 4. The PM Review Schema (`PM_Review.json`)
+
+The "PM Review" is the output of the Product Manager (PM) Agent after it reviews a `blueprint.yaml`. This report indicates whether the Blueprint is strategically aligned with the commission's goals before development work begins. It must be a JSON file and adhere to the following structure:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PM Review",
+  "description": "Output of the Product Manager Agent's strategic review of a Blueprint.",
+  "type": "object",
+  "properties": {
+    "commission_id": {
+      "description": "Unique identifier for the commission, matching the one in blueprint.yaml.",
+      "type": "string",
+      "examples": ["calc_gui_001", "research_ai_ethics_002"]
+    },
+    "blueprint_path": {
+      "description": "The full path to the blueprint.yaml file that was reviewed.",
+      "type": "string",
+      "examples": ["blueprints/gui_calc_001/blueprint.yaml"]
+    },
+    "blueprint_version_reviewed": {
+      "description": "The version of the Blueprint that was reviewed (e.g., from the 'revisions' section of the Blueprint).",
+      "type": "string",
+      "examples": ["1.0", "1.1_revised"]
+    },
+    "review_timestamp": {
+      "description": "Timestamp of when the review was completed, in ISO 8601 format.",
+      "type": "string",
+      "format": "date-time",
+      "examples": ["2023-10-26T10:30:00Z"]
+    },
+    "pm_agent_id": {
+      "description": "Identifier of the PM Agent instance or version performing the review.",
+      "type": "string",
+      "examples": ["PM_Agent_v1.2"]
+    },
+    "decision": {
+      "description": "The outcome of the PM Agent's review.",
+      "type": "string",
+      "enum": ["APPROVED", "REVISION_REQUESTED"],
+      "examples": ["APPROVED"]
+    },
+    "rationale": {
+      "description": "A detailed natural language explanation for the decision. If REVISION_REQUESTED, this must clearly state the issues found and reference the specific decision criteria from the PM_Agent_Charter.md that were triggered.",
+      "type": "string",
+      "examples": [
+        "The Blueprint is APPROVED. The key_objectives and product_specifications align well with the project_summary, presenting a clear and strategically sound plan for an MVP.",
+        "REVISION_REQUESTED: The product_specifications for the 'software_mvp' detail features beyond a minimal viable scope (Criterion: 'Over-engineered for an MVP'). Specifically, module 'reporting_suite' and its components seem premature for an initial version based on the project_summary. Recommend deferring this module to a later iteration."
+      ]
+    },
+    "suggested_focus_areas_for_revision": {
+      "description": "Optional: A list of specific sections or aspects of the Blueprint that the Planner Artisan should focus on during revision. This is only present if decision is REVISION_REQUESTED.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        ["product_specifications.modules[1].description", "key_objectives[2]"]
+      ],
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "commission_id",
+    "blueprint_path",
+    "blueprint_version_reviewed",
+    "review_timestamp",
+    "pm_agent_id",
+    "decision",
+    "rationale"
+  ],
+  "if": {
+    "properties": { "decision": { "const": "REVISION_REQUESTED" } }
+  },
+  "then": {
+    "required": ["suggested_focus_areas_for_revision"]
+  }
+}
+```
+*Field descriptions for `PM_Review.json` are identical to those provided in its original schema document and are available in the Pydantic model `gandalf_workshop.specs.data_models.PMReview`.*
 
 These standardized communication protocols are the bedrock of the Gandalf Workshop's efficiency and quality assurance, ensuring every Artisan understands their role and every Commission is managed with precision.

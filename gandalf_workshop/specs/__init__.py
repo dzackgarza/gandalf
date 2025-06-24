@@ -7,6 +7,8 @@ definitions (schemas) for Blueprints and Inspection Reports are stored.
 Making it a submodule allows these critical data model definitions
 to be imported cleanly.
 """
-from .data_models import BlueprintModel, InspectionReportModel
 
-__all__ = ["BlueprintModel", "InspectionReportModel"]
+# from .data_models import BlueprintModel, InspectionReportModel # Old models
+from .data_models import PMReview, PMReviewDecision
+
+__all__ = ["PMReview", "PMReviewDecision"]  # Expose new models
