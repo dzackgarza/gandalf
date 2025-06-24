@@ -7,9 +7,9 @@ new commissions. Upon receiving a request (a "prompt"), this script will
 initialize the WorkshopManager and instruct it to begin the process, starting
 with the creation of a Blueprint.
 """
+
 import argparse
 import uuid
-from pathlib import Path
 
 from gandalf_workshop.workshop_manager import WorkshopManager
 
@@ -26,15 +26,13 @@ def main():
     Manager to commence the design phase (Blueprint creation).
     """
     parser = argparse.ArgumentParser(
-        description=(
-            "Gandalf Workshop CLI - Submit a new commission."
-        )
+        description=("Gandalf Workshop CLI - Submit a new commission.")
     )
     parser.add_argument(
         "--prompt",
         type=str,
         required=True,
-        help="The user's request or description for the new commission."
+        help="The user's request or description for the new commission.",
     )
     # Potentially add more arguments later, e.g., --commission_id,
     # --config_file
@@ -54,30 +52,48 @@ def main():
     print(f"Gandalf Workshop: Assigning Commission ID: {commission_id}")
 
     user_prompt = args.prompt
-    print(f"Gandalf Workshop: User Prompt: \"{user_prompt}\"")
+    print(f'Gandalf Workshop: User Prompt: "{user_prompt}"')
 
-    # Call the Workshop Manager's primary method to start the process
-    # Metaphor: The Manager is instructed to assign the new commission to the
-    #           Planner Artisans to begin drafting the Blueprint.
+    # Call the Workshop Manager's method to execute the full commission workflow.
+    # Metaphor: The Manager is instructed to oversee the entire commission from
+    #           start to finish, including all new review stages.
     try:
-        blueprint_path: Path = manager.commission_new_blueprint(
-            user_prompt=user_prompt,
-            commission_id=commission_id
+        # Initialize WorkshopManager. Consider making max_pm_review_cycles configurable if needed.
+        manager = WorkshopManager(max_pm_review_cycles=3)
+
+        success = manager.execute_full_commission_workflow(
+            user_prompt=user_prompt, commission_id=commission_id
         )
-        print(f"Gandalf Workshop: New commission '{commission_id}' has been "
-              f"accepted.")
-        print(f"Blueprint creation process has begun. Placeholder Blueprint "
-              f"at: {blueprint_path.resolve()}")
-        print("Further steps (product generation, inspection) would follow "
-              "based on this blueprint.")
+
+        if success:
+            print(
+                (
+                    f"Gandalf Workshop: Commission '{commission_id}' processed "
+                    "successfully."
+                )
+            )
+        else:
+            print(
+                (
+                    f"Gandalf Workshop: Commission '{commission_id}' failed or was "
+                    "halted during processing."
+                )
+            )
+
     except Exception as e:
-        print(f"Gandalf Workshop: An error occurred while processing the "
-              f"commission: {e}")
+        print(
+            (
+                f"Gandalf Workshop: A critical error occurred while processing "
+                f"commission '{commission_id}': {e}"
+            )
+        )
         # Add more sophisticated error handling or logging here
+        # For example, log the stack trace
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
     # Metaphor: The workshop doors are opened, ready for new commissions.
     main()
-
-# Main entry point
