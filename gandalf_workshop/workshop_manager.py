@@ -35,7 +35,6 @@ class WorkshopManager:
         # e.g., loading configurations, initializing connections to AI agent
         # frameworks (CrewAI, AutoGen, etc.)
         print("Workshop Manager initialized. Ready to accept commissions.")
-        pass
 
     def commission_new_blueprint(self, user_prompt: str,
                                  commission_id: str) -> Path:
@@ -214,7 +213,6 @@ class WorkshopManager:
 
         print(f"Workshop Manager: Commission '{commission_id}' finalized and "
               f"artifacts 'moved' to {completed_dir}.")
-        pass
 
     def request_blueprint_revision(
         self,

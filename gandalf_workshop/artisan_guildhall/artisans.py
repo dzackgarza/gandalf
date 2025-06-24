@@ -53,7 +53,6 @@ def initialize_planning_crew():
     # )
     # return planning_crew
     print("Artisan Assembly: Planning Crew initialized (placeholder).")
-    pass
 
 
 def initialize_coding_crew():
@@ -90,7 +89,6 @@ def initialize_coding_crew():
     # )
     # return coding_crew
     print("Artisan Assembly: Coding Crew initialized (placeholder).")
-    pass
 
 
 def initialize_inspection_crew():
@@ -130,7 +128,6 @@ def initialize_inspection_crew():
     # )
     # return inspection_crew
     print("Artisan Assembly: Inspection Crew initialized (placeholder).")
-    pass
 
 
 if __name__ == '__main__':
