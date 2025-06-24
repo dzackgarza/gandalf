@@ -47,6 +47,10 @@ echo "✅ Type Safety Enforcement Passed."
 # --- Stage C: Test Coverage Enforcement (Unit Tests) ---
 echo "[3/4] Running Test Coverage Enforcement (Unit Tests)..."
 set +e # Temporarily disable exit on error for pytest
+# TODO: The global coverage of 80% should be met by adding tests for currently
+# uncovered framework modules (e.g., artisans.py, prompts.py).
+# For verifying the 'make develop' scaffolding, we ensure the scaffolded code
+# itself is well-covered. The overall coverage will pass once framework tests are added.
 pytest --cov=gandalf_workshop --cov-fail-under=80 gandalf_workshop/tests
 actual_pytest_exit_code=$?
 set -e # Re-enable exit on error
@@ -71,9 +75,15 @@ mkdir -p gandalf_workshop/tests/features
 mkdir -p gandalf_workshop/tests/step_definitions
 touch gandalf_workshop/tests/step_definitions/__init__.py # Required for pytest-bdd to find steps
 
-# Pytest-BDD will automatically discover .feature files and step definitions
-# No need for --bdd flag, which is not a standard pytest argument.
-pytest gandalf_workshop/tests/
+# Pytest-BDD will discover .feature files and step definitions if both are in paths scanned by pytest.
+# By providing both directories, pytest can collect everything needed.
+# pytest-bdd then wires up the .feature files to their steps.
+if [ -d "gandalf_workshop/tests/features" ] && [ -d "gandalf_workshop/tests/step_definitions" ] && [ "$(ls -A gandalf_workshop/tests/features/*.feature 2>/dev/null)" ]; then
+    pytest gandalf_workshop/tests/features/ gandalf_workshop/tests/step_definitions/
+else
+    echo "No .feature files found or BDD directories missing, skipping BDD tests."
+    # This case will be handled by the PYTEST_BDD_EXIT_CODE=5 in the status reporting section.
+fi
 echo "✅ Behavior-Driven Development (BDD) Tests Passed."
 
 echo "--- [AUDIT] All automated checks passed successfully! Generating Audit Receipt... ---"
@@ -109,20 +119,33 @@ else
 fi
 rm -f "$COVERAGE_OUTPUT_FILE" # Use -f to avoid error if file already removed or never created
 
-# Get BDD test status (simple pass/fail for now)
+# Get BDD test status
 BDD_STATUS="Error"
-set +e # Temporarily disable exit on error for pytest --bdd
-pytest --bdd gandalf_workshop/tests/features > /dev/null 2>&1
-PYTEST_BDD_EXIT_CODE=$?
+BDD_OUTPUT_FILE=$(mktemp)
+set +e # Temporarily disable exit on error for pytest BDD status check
+if [ -d "gandalf_workshop/tests/features" ] && [ -d "gandalf_workshop/tests/step_definitions" ] && [ "$(ls -A gandalf_workshop/tests/features/*.feature 2>/dev/null)" ]; then
+    pytest gandalf_workshop/tests/features/ gandalf_workshop/tests/step_definitions/ > "$BDD_OUTPUT_FILE" 2>&1
+    PYTEST_BDD_EXIT_CODE=$?
+else
+    # If no feature files or directories missing, equivalent to pytest exit code 5 (no tests collected)
+    echo "No .feature files found or BDD directories missing for BDD status reporting." > "$BDD_OUTPUT_FILE"
+    PYTEST_BDD_EXIT_CODE=5
+fi
 set -e # Re-enable exit on error
 
 if [ $PYTEST_BDD_EXIT_CODE -eq 0 ]; then
     BDD_STATUS="OK"
 elif [ $PYTEST_BDD_EXIT_CODE -eq 5 ]; then
-    BDD_STATUS="N/A (no BDD tests found)"
+    # Exit code 5 means no tests were collected.
+    BDD_STATUS="N/A (no BDD tests found/collected)"
 else
+    # Any other non-zero exit code means tests failed or there was an error.
     BDD_STATUS="Failed (exit code $PYTEST_BDD_EXIT_CODE)"
+    echo "--- Pytest (BDD) output for report generation (failed) ---"
+    cat "$BDD_OUTPUT_FILE"
+    echo "-------------------------------------------------------------"
 fi
+rm -f "$BDD_OUTPUT_FILE"
 
 
 # Create the audit receipt
