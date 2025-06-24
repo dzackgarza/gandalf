@@ -27,7 +27,7 @@ lock:
 
 # Target for the main development workflow
 .PHONY: develop
-develop:
+develop: install
 	@echo "--- Starting development workflow for prompt: $(PROMPT) ---"
 	@echo "--- [DEV] Performing placeholder code generation and scaffolding ---"
 	mkdir -p gandalf_workshop/blueprints
