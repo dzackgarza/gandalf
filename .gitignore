@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Sensitive Info
+.env
+
+# OS-specific
+.DS_Store
+Thumbs.db
