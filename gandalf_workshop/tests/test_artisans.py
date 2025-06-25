@@ -1,25 +1,30 @@
 import pytest
 from gandalf_workshop.artisan_guildhall import artisans
 
+
 def test_initialize_planning_crew():
     """Tests that the placeholder planning crew function can be called."""
     # The function currently just prints.
     # In a real scenario, we'd check for a crew object or mock its dependencies.
     artisans.initialize_planning_crew()
 
+
 def test_initialize_coding_crew():
     """Tests that the placeholder coding crew function can be called."""
     artisans.initialize_coding_crew()
 
+
 def test_initialize_inspection_crew():
     """Tests that the placeholder inspection crew function can be called."""
     artisans.initialize_inspection_crew()
+
 
 # Note: initialize_pm_review_crew is implicitly tested via test_workshop_manager.py
 # and its own __main__ block in artisans.py provides some direct test cases.
 # Adding a dedicated test here could be done for completeness if desired,
 # but might be redundant if WorkshopManager tests cover its usage well.
 # For now, focusing on the otherwise uncovered ones.
+
 
 def test_initialize_pm_review_crew_mock_logic(tmp_path):
     """
@@ -37,31 +42,44 @@ def test_initialize_pm_review_crew_mock_logic(tmp_path):
 
     # Test case 1: Complex project, expect REVISION_REQUESTED
     with open(mock_bp_path, "w") as bp_file:
-        yaml.dump({
-            "commission_id": commission_id,
-            "project_summary": "A very complex project that needs simplification for the MVP.",
-            "key_objectives": ["Achieve world peace"],
-            "revisions": [{"version": "0.9", "date": "2023-01-01", "notes": "Initial Draft"}]
-        }, bp_file)
+        yaml.dump(
+            {
+                "commission_id": commission_id,
+                "project_summary": "A very complex project that needs simplification for the MVP.",
+                "key_objectives": ["Achieve world peace"],
+                "revisions": [
+                    {"version": "0.9", "date": "2023-01-01", "notes": "Initial Draft"}
+                ],
+            },
+            bp_file,
+        )
 
     review_path_complex = artisans.initialize_pm_review_crew(
         mock_bp_path, commission_id, blueprint_version="0.9"
     )
     assert review_path_complex.exists()
     with open(review_path_complex, "r") as rf:
-        review_content_complex = yaml.safe_load(rf) # PMReview is JSON, but yaml can load basic JSON
-    assert review_content_complex["decision"] == PMReviewDecision.REVISION_REQUESTED.value
+        review_content_complex = yaml.safe_load(
+            rf
+        )  # PMReview is JSON, but yaml can load basic JSON
+    assert (
+        review_content_complex["decision"] == PMReviewDecision.REVISION_REQUESTED.value
+    )
     assert "complex" in review_content_complex["rationale"].lower()
 
-
     # Test case 2: Simple project, expect APPROVED
-    with open(mock_bp_path, "w") as bp_file: # Overwrite the same blueprint file
-        yaml.dump({
-            "commission_id": commission_id,
-            "project_summary": "A very simple project.",
-            "key_objectives": ["Achieve local peace"],
-            "revisions": [{"version": "1.0", "date": "2023-01-02", "notes": "Revised Draft"}]
-        }, bp_file)
+    with open(mock_bp_path, "w") as bp_file:  # Overwrite the same blueprint file
+        yaml.dump(
+            {
+                "commission_id": commission_id,
+                "project_summary": "A very simple project.",
+                "key_objectives": ["Achieve local peace"],
+                "revisions": [
+                    {"version": "1.0", "date": "2023-01-02", "notes": "Revised Draft"}
+                ],
+            },
+            bp_file,
+        )
 
     review_path_simple = artisans.initialize_pm_review_crew(
         mock_bp_path, commission_id, blueprint_version="1.0"

@@ -171,9 +171,12 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
             decision = PMReviewDecision.REVISION_REQUESTED
             rationale = (
                 "Mock PM Review: Blueprint needs revision. "
-                "Summary indicates complexity. Please simplify." # Added "Please simplify"
+                "Summary indicates complexity. Please simplify."  # Added "Please simplify"
             )
-            suggested_focus_areas = ["project_summary", "product_specifications.modules"]
+            suggested_focus_areas = [
+                "project_summary",
+                "product_specifications.modules",
+            ]
         elif "simple" in summary or "mvp" in summary:  # Only if not complex
             decision = PMReviewDecision.APPROVED
             rationale = (
