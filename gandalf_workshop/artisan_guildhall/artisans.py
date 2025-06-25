@@ -227,15 +227,24 @@ AUDIT_RESULT: FAIL
         return AuditOutput(status=AuditStatus.FAILURE, message=f"Live Auditor Error: {type(e).__name__} - {str(e)}", report_path=None)
 
 def initialize_live_coder_agent(
-    plan_input: PlanOutput, commission_id: str, output_target_dir: Path, llm_config: Optional[Dict[str, Any]] = None
+    plan_input: PlanOutput, commission_id: str, output_target_dir_base: Path, llm_config: Optional[Dict[str, Any]] = None
 ) -> CodeOutput:
     logger = logging.getLogger(__name__)
     logger.info(f"Artisan Assembly: Live Coder Agent activated for commission '{commission_id}'.")
-    output_target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create the timestamped directory
+    timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+    # output_target_dir_base is outputs/<unique_id>
+    # final_output_dir will be outputs/<unique_id>/<timestamp>
+    final_output_dir = output_target_dir_base / timestamp_str
+    final_output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"  Live Coder: Output directory set to {final_output_dir}")
 
     if not llm_config or not llm_config.get("client"):
         logger.error("  Live Coder: LLM configuration not provided or client missing.")
-        return CodeOutput(code_path=output_target_dir, message="Coder Error: LLM not configured for coder.")
+        # Return CodeOutput with the base directory path if LLM is not configured,
+        # as a file won't be created.
+        return CodeOutput(code_path=final_output_dir, message="Coder Error: LLM not configured for coder.")
 
     provider_name = llm_config["provider_name"]
     client = llm_config["client"]
@@ -243,99 +252,150 @@ def initialize_live_coder_agent(
 
     if not selected_model_name:
         logger.error(f"  Live Coder: No models found for provider {provider_name}.")
-        return CodeOutput(code_path=output_target_dir, message=f"Coder Error: No models for {provider_name}.")
+        return CodeOutput(code_path=final_output_dir, message=f"Coder Error: No models for {provider_name}.")
 
     logger.info(f"  Live Coder: Using {provider_name} with model {selected_model_name}.")
 
-    try:
-        from .prompts import CODER_CHARTER_PROMPT
-        formatted_plan = "\n".join(f"- {task}" for task in plan_input.tasks)
-        full_prompt = f"{CODER_CHARTER_PROMPT}\n\nUser Request (Plan):\n{formatted_plan}\n\nPlease provide only the Python code as a direct response. Do not include any markdown formatting like ```python ... ```."
-
-        generated_code_full_response = ""
-        if provider_name == "gemini":
-            model_instance = client.GenerativeModel(selected_model_name)
-            response = model_instance.generate_content(full_prompt)
-            generated_code_full_response = response.text
-        elif provider_name == "mistral":
-            messages = [{"role": "user", "content": full_prompt}]
-            chat_response = client.chat.complete(model=selected_model_name, messages=messages)
-            generated_code_full_response = chat_response.choices[0].message.content
-        elif provider_name == "together_ai":
-            together_prompt = f"[INST] {full_prompt} [/INST]"
-            response = client.completions.create(
-                prompt=together_prompt, model=selected_model_name, max_tokens=2048, stop=["[/INST]", "</s>", "```"]
+    max_retries = 3
+    for attempt in range(max_retries):
+        logger.info(f"  Live Coder: Attempt {attempt + 1} of {max_retries} to generate and validate code.")
+        try:
+            from .prompts import CODER_CHARTER_PROMPT
+            formatted_plan = "\n".join(f"- {task}" for task in plan_input.tasks)
+            # Added instruction to avoid markdown for TogetherAI specifically, good general practice
+            full_prompt = (
+                f"{CODER_CHARTER_PROMPT}\n\nUser Request (Plan):\n{formatted_plan}\n\n"
+                "Please provide only the Python code as a direct response. "
+                "Do not include any markdown formatting like ```python ... ``` or ``` ... ```. "
+                "Your entire response should be parseable as a single Python file."
             )
-            if response and response.choices:
-                generated_code_full_response = response.choices[0].text.strip()
-            else:
-                raise Exception("Together AI response was empty or malformed.")
-        else:
-            logger.error(f"  Live Coder: Provider {provider_name} not supported.")
-            return CodeOutput(code_path=output_target_dir, message=f"Coder Error: Provider {provider_name} not supported.")
 
-        logger.info(f"  Live Coder: Raw LLM response (first 200): {generated_code_full_response[:200]}...")
-        if not generated_code_full_response:
-            logger.warning("  Live Coder: LLM returned empty response.")
-            return CodeOutput(code_path=output_target_dir, message="Coder Error: LLM returned empty code.")
-
-        python_blocks = re.findall(r"```python\s*\n?(.*?)\n```", generated_code_full_response, re.DOTALL)
-        generic_blocks = re.findall(r"```\s*\n?(.*?)\n```", generated_code_full_response, re.DOTALL)
-        selected_code_content = ""
-
-        if python_blocks:
-            logger.info(f"  Live Coder: Found {len(python_blocks)} Python-specific blocks.")
-            if len(python_blocks) == 1:
-                selected_code_content = python_blocks[0]
-                logger.info("  Live Coder: Single Python block selected.")
-            else:
-                main_candidates = [b for b in python_blocks if 'if __name__ == "__main__":' in b]
-                if main_candidates:
-                    selected_code_content = main_candidates[0]
-                    logger.info("  Live Coder: Selected Python block with '__main__' check.")
+            generated_code_full_response = ""
+            if provider_name == "gemini":
+                model_instance = client.GenerativeModel(selected_model_name)
+                # Add safety settings to reduce refusals for code generation
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+                ]
+                response = model_instance.generate_content(full_prompt, safety_settings=safety_settings)
+                generated_code_full_response = response.text
+            elif provider_name == "mistral":
+                messages = [{"role": "user", "content": full_prompt}]
+                chat_response = client.chat.complete(model=selected_model_name, messages=messages)
+                generated_code_full_response = chat_response.choices[0].message.content
+            elif provider_name == "together_ai":
+                # TogetherAI prompt structure is specific
+                together_prompt_structured = f"[INST] {full_prompt} [/INST]"
+                response = client.completions.create(
+                    prompt=together_prompt_structured, model=selected_model_name, max_tokens=3072, # Increased max_tokens
+                    stop=["[/INST]", "</s>", "```"] # Stop sequences
+                )
+                if response and response.choices:
+                    generated_code_full_response = response.choices[0].text.strip()
                 else:
-                    non_test_candidates = [b for b in python_blocks if not ("unittest" in b or "pytest" in b or "test_" in b or "Test" in b)]
-                    if non_test_candidates:
-                        selected_code_content = non_test_candidates[0]
-                        logger.info("  Live Coder: Selected first non-test Python block.")
-                    else:
-                        selected_code_content = python_blocks[0]
-                        logger.warning("  Live Coder: Multiple Python blocks, all seem like tests. Selected first one.")
-        elif generic_blocks:
-            logger.info(f"  Live Coder: No Python-specific blocks. Found {len(generic_blocks)} generic blocks.")
-            selected_code_content = generic_blocks[0]
-            logger.info("  Live Coder: Selected first generic block.")
-        else:
-            logger.warning("  Live Coder: No markdown code blocks found. Checking if entire response is code or natural language.")
-            # If no blocks, check if the response *looks* like it might be just code, or if it's likely natural language.
-            # A simple heuristic: if it contains "```" anywhere, it's malformed for this fallback.
-            # Or if it contains common introductory phrases.
-            if "```" in generated_code_full_response or \
-               generated_code_full_response.lower().strip().startswith("here's") or \
-               generated_code_full_response.lower().strip().startswith("sure,") or \
-               generated_code_full_response.lower().strip().startswith("certainly,") or \
-               generated_code_full_response.lower().strip().startswith("okay,") or \
-               ("python" in generated_code_full_response.lower() and len(generated_code_full_response) < 100 and '\n' not in generated_code_full_response): # Short line with "python"
-                logger.warning("  Live Coder: Fallback 'no blocks' determined to be natural language or malformed. Clearing code.")
-                selected_code_content = ""
+                    raise Exception("Together AI response was empty or malformed.")
             else:
-                logger.warning("  Live Coder: Fallback 'no blocks' - assuming entire response is code (still risky).")
-                selected_code_content = generated_code_full_response
+                logger.error(f"  Live Coder: Provider {provider_name} not supported.")
+                # On unsupported provider, return error with final_output_dir
+                return CodeOutput(code_path=final_output_dir, message=f"Coder Error: Provider {provider_name} not supported.")
 
-        generated_code_final = selected_code_content.strip()
+            logger.info(f"  Live Coder: Raw LLM response (first 300 chars): {generated_code_full_response[:300]}...")
+            if not generated_code_full_response.strip():
+                logger.warning("  Live Coder: LLM returned empty or whitespace-only response.")
+                if attempt < max_retries - 1:
+                    logger.info("  Live Coder: Retrying...")
+                    continue
+                return CodeOutput(code_path=final_output_dir, message="Coder Error: LLM returned empty code after retries.")
 
-        if not generated_code_final:
-            logger.warning("  Live Coder: After parsing, no code was extracted.")
-            return CodeOutput(code_path=output_target_dir, message="Coder Error: No usable code extracted.")
+            # Code extraction logic (simplified due to stronger prompt against markdown)
+            # First, try to remove common markdown code fences if they still appear.
+            cleaned_response = generated_code_full_response
+            # Regex to find ```python ... ``` or ``` ... ```
+            # It captures the content within the fences.
+            # re.DOTALL allows . to match newlines.
+            python_block_match = re.search(r"```(?:python\s*)?\n?(.*?)\n?```", generated_code_full_response, re.DOTALL)
+            if python_block_match:
+                logger.info("  Live Coder: Found markdown code block, extracting content.")
+                cleaned_response = python_block_match.group(1)
+            else:
+                # If no blocks, assume the whole response might be code, but check for common refusal phrases.
+                # This check is now more critical as we discourage markdown.
+                refusal_patterns = [
+                    r"I cannot fulfill this request",
+                    r"I am unable to create code",
+                    r"I'm not able to generate code",
+                    r"As a large language model",
+                    r"My purpose is to assist with a wide range of tasks",
+                    r"However, I cannot directly execute code"
+                ]
+                if any(re.search(pattern, cleaned_response, re.IGNORECASE) for pattern in refusal_patterns):
+                    logger.warning(f"  Live Coder: LLM response appears to be a refusal or explanation, not code: {cleaned_response[:200]}")
+                    if attempt < max_retries - 1:
+                        logger.info("  Live Coder: Retrying due to detected refusal/explanation...")
+                        continue
+                    return CodeOutput(code_path=final_output_dir, message="Coder Error: LLM responded with explanation/refusal instead of code.")
+                logger.info("  Live Coder: No markdown code block found. Assuming entire response is code.")
 
-        file_name = "generated_code.py"
-        file_path = output_target_dir / file_name
-        with open(file_path, "w", encoding="utf-8") as f: f.write(generated_code_final)
-        logger.info(f"  Live Coder: Successfully wrote code to {file_path}")
-        return CodeOutput(code_path=file_path, message="Successfully generated code.")
-    except Exception as e:
-        logger.error(f"  Live Coder: Exception: {e}", exc_info=True)
-        return CodeOutput(code_path=output_target_dir, message=f"Coder Error: Exception - {e}")
+            generated_code_final = cleaned_response.strip()
+
+            if not generated_code_final:
+                logger.warning("  Live Coder: After parsing/cleaning, no code was extracted.")
+                if attempt < max_retries - 1:
+                    logger.info("  Live Coder: Retrying...")
+                    continue
+                return CodeOutput(code_path=final_output_dir, message="Coder Error: No usable code extracted after retries.")
+
+            # Basic validation: try to compile the code.
+            try:
+                compile(generated_code_final, '<string>', 'exec')
+                logger.info("  Live Coder: Code syntax validation (compile check) successful.")
+            except SyntaxError as se:
+                logger.warning(f"  Live Coder: Generated code failed syntax validation: {se}")
+                if attempt < max_retries - 1:
+                    logger.info("  Live Coder: Retrying due to syntax error...")
+                    continue
+                # Save the erroneous code for debugging before returning error
+                error_file_name = "generated_code_syntax_error.py"
+                error_file_path = final_output_dir / error_file_name
+                with open(error_file_path, "w", encoding="utf-8") as f:
+                    f.write(f"# Original LLM Response (Syntax Error on Attempt {attempt + 1}):\n# {generated_code_full_response}\n\n# Extracted/Cleaned Code (Syntax Error on Attempt {attempt + 1}):\n{generated_code_final}")
+                logger.error(f"  Live Coder: Wrote syntactically incorrect code to {error_file_path}")
+                return CodeOutput(code_path=error_file_path, message=f"Coder Error: Generated code has syntax errors after {max_retries} attempts. Last error: {se}")
+
+            # If validation passes
+            file_name = "generated_code.py"
+            file_path = final_output_dir / file_name
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(generated_code_final)
+            logger.info(f"  Live Coder: Successfully wrote validated code to {file_path}")
+            return CodeOutput(code_path=file_path, message="Successfully generated code.")
+
+        except Exception as e:
+            logger.error(f"  Live Coder: Exception during attempt {attempt + 1}: {type(e).__name__} - {str(e)}", exc_info=True)
+            if attempt < max_retries - 1:
+                logger.info("  Live Coder: Retrying due to exception...")
+                continue
+            # After last retry, return error with final_output_dir
+            # Potentially save the last raw response for debugging
+            error_response_file = final_output_dir / "llm_error_response.txt"
+            try:
+                with open(error_response_file, "w", encoding="utf-8") as f:
+                    f.write(f"Error on attempt {attempt + 1}: {type(e).__name__} - {str(e)}\n\n")
+                    f.write("Raw LLM response (if available):\n")
+                    f.write(generated_code_full_response if 'generated_code_full_response' in locals() else "N/A")
+                logger.info(f"  Live Coder: Saved error response to {error_response_file}")
+            except Exception as ex_save:
+                logger.error(f"  Live Coder: Could not save error response file: {ex_save}")
+
+            return CodeOutput(code_path=final_output_dir, message=f"Coder Error: Exception after {max_retries} attempts - {type(e).__name__}: {str(e)}")
+
+    # Should not be reached if loop logic is correct, but as a fallback:
+    logger.error("  Live Coder: Exited retry loop unexpectedly.")
+    return CodeOutput(code_path=final_output_dir, message=f"Coder Error: Unexpected exit from generation loop after {max_retries} attempts.")
+
 
 def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="1.0"):
     logger_artisans.info(
