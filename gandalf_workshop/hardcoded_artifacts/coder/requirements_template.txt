@@ -1,3 +1,0 @@
-pytest
-pytest-bdd
-# No other app-specific dependencies for this simple CLI
