@@ -1,4 +1,4 @@
-# AGENTS.md (Formerly JULES_INSTRUCTIONS.md)
+# AGENTS.md
 
 **Project:** Gandalf Workshop
 
@@ -17,76 +17,64 @@
 ---
 
 **Your Current State & Context (as of this update):**
-*   You (the current Jules iteration) just successfully implemented the V1 End-to-End (E2E) test for a "Hello, World!" application generation.
-*   This involved:
-    *   Refactoring `gandalf_workshop/workshop_manager.py`'s `run_v1_commission` method to call the actual V1 agent functions (`initialize_coder_agent_v1`, `initialize_auditor_agent_v1`) from `gandalf_workshop/artisan_guildhall/artisans.py`, removing its internal mock logic for these agents.
-    *   Updating `gandalf_workshop/artisan_guildhall/artisans.py`:
-        *   Modified `initialize_coder_agent_v1` to accept a specific `output_target_dir` (controlled by `WorkshopManager`) and to create `main.py` for the "Hello, World!" case.
-        *   Refactored `initialize_auditor_agent_v1` to use the built-in `compile()` function for syntax checking, preventing issues with file modification (`.pyc` generation) that were causing `UnicodeDecodeError` in tests.
-    *   Adapting the existing E2E test file `gandalf_workshop/tests/test_e2e_v1.py`:
-        *   Removed mocks for agent functions (`initialize_planner_agent_v1`) and data models (`CodeOutput`, `AuditOutput`) to make the tests truly E2E for the success path.
-        *   Updated `test_e2e_hello_world_generation` to verify file creation (`main.py`), content, successful execution via `subprocess`, and audit success.
-        *   Refined `test_e2e_audit_failure_syntax_error` to use `monkeypatch` for the Coder to produce a file with a syntax error, ensuring the Auditor correctly reports the failure.
-    *   Updating the unit tests for `WorkshopManager` in `gandalf_workshop/tests/test_workshop_manager.py` to mock the agent *initialization functions* rather than the data models, aligning with the `WorkshopManager` refactoring.
-    *   Ensured all tests pass by running `python -m pytest ...` after resolving dependency and environment issues (initial `ModuleNotFoundError: No module named 'yaml'` and subsequent test failures due to code behavior and test assertions).
-*   All these changes are staged for commit.
-*   This `AGENTS.md` file has been updated with this summary and next steps.
+
+*   You (the current Jules iteration) have successfully refactored the LLM provider handling and integrated it into the main workflow, enabling the Coder agent to use live LLMs. This fulfills a critical part of the V1 goal: LLM-based code generation.
+*   **Key Accomplishments:**
+    1.  **`LLMProviderManager` Created (`gandalf_workshop/llm_provider_manager.py`):**
+        *   Refactored the old `LLM_API_validator.py` into a robust `LLMProviderManager` class.
+        *   This manager loads API keys from `.env` for Gemini, Together AI, and Mistral.
+        *   It can check the operational status of these providers and list their available models.
+        *   It provides a method (`get_llm_provider()`) to select a working LLM provider, with options for preferring a specific one.
+    2.  **Integration with `WorkshopManager` (`gandalf_workshop/workshop_manager.py`):**
+        *   `WorkshopManager` now instantiates `LLMProviderManager` upon its own initialization.
+        *   It attempts to secure an LLM configuration. If no LLM provider is found, it logs a critical error and will prevent commissions from running.
+        *   The obtained LLM configuration is now passed to `initialize_coder_agent_v1`.
+    3.  **LLM Utilization in Coder Agent (`gandalf_workshop/artisan_guildhall/artisans.py`):**
+        *   `initialize_coder_agent_v1` now accepts an `llm_config` parameter.
+        *   If `llm_config` is provided, the Coder:
+            *   Selects a suitable model from the provider's list (with improved logic to prefer modern/capable models like Gemini 1.5 Flash/Pro).
+            *   Constructs a prompt using `CODER_CHARTER_PROMPT` and the task from the planner.
+            *   Makes a live API call to the selected LLM provider (Gemini, Mistral, or Together AI) to generate Python code.
+            *   Includes basic cleanup for markdown code blocks from the LLM response.
+            *   Saves the generated code to `app.py` (or `app_llm_failed.py` if LLM call fails, ensuring a `.py` file for the auditor).
+    4.  **Dependency Management:**
+        *   Added `google-generativeai`, `together`, and `mistralai` to `requirements.in`.
+        *   Ensured `pyyaml` was correctly handled (it was already in `requirements.in`; the issue was environment/installation).
+        *   Used `make lock` and `make install` to update `requirements.txt` and install dependencies into the `.venv`.
+    5.  **Testing:**
+        *   Developed unit tests for `LLMProviderManager` (`gandalf_workshop/tests/test_llm_provider_manager.py`) that now test against *live* API services (after an initial attempt with mocks proved very complex to maintain for this iteration). Tests cover scenarios like key availability and provider selection. All unit tests are currently passing.
+        *   Successfully ran a manual end-to-end test commission: `python main.py --prompt "Create a Python CLI tool that takes a text file as input and counts the occurrences of each word, then prints the top 5 words and their counts."` This resulted in functional Python code being generated by Gemini and saved to `outputs/commission_b79d5213/app.py`.
+    6.  **Cleanup**: The old `LLM_API_validator.py` is ready to be deleted.
+
+*   The system now dynamically selects an LLM provider at runtime and uses it for code generation, a major step towards V1 compliance.
 
 **Next Steps & Focus Areas for the *Next* Jules Iteration:**
 
-**1. Understanding Current State & V1 Goals:**
+**1. Enhance Coder Agent's LLM Interaction & Reliability:**
+    *   **Prompt Engineering**: The current prompt for the Coder is basic. Refine `CODER_CHARTER_PROMPT` and the way task descriptions are fed to the LLM to improve code quality, adherence to specifications (from `PlanOutput`), and consistency. Consider structured input/output for the LLM if possible.
+    *   **Error Handling & Retries for LLM Calls**: Implement more robust error handling for LLM API calls within `initialize_coder_agent_v1` (e.g., retries for transient network issues, specific error parsing).
+    *   **Model Capability Matching**: The `LLMProviderManager` has a placeholder for `required_capabilities`. Implement logic to actually use this, so it can select models based on needs (e.g., chat, function calling, specific context window size). The Coder should then be able to request a provider with certain capabilities.
+    *   **Context Management**: For more complex tasks, the Coder LLM will need to manage larger contexts, potentially breaking down tasks further or using techniques to handle limited context windows.
 
-*   **Revised V1 Goal:** The primary goal for V1 of the Gandalf Workshop is to **prove the viability of LLM-based code generation for a non-trivial task.** This means the Coder agent (`initialize_coder_agent_v1`) **must** use an LLM to generate functional code beyond simple "Hello, World!" examples. Refer to `docs/roadmap/V1.md` for the updated detailed V1 goals and E2E test cases (including one for a utility application).
-*   **Previous Coder State (Investigation Results):**
-    *   My investigation (previously in `AUDITV1_2.md`, now summarized here) confirmed that the `initialize_coder_agent_v1` function in `gandalf_workshop/artisan_guildhall/artisans.py` was a **placeholder**.
-    *   It did **not** use LLMs. Instead, it had hardcoded logic to either output a "Hello, World!" script or echo the task description into a text file (e.g., `task_output.txt` created in `gandalf_workshop/commission_work/commission_f7334504/` during a previous test run, which will be deleted).
-    *   This placeholder behavior was the reason the workshop failed to produce actual code for prompts like "create a calculator app...".
-    *   The project *does* include dependencies for LLM integration (e.g., `openai`, `litellm`, `crewai`, `langchain` in `requirements.txt`) and a detailed `CODER_CHARTER_PROMPT` in `gandalf_workshop/artisan_guildhall/prompts.py`. These were not used by the V1 Coder placeholder.
-*   **Output Standardization:** The output path for commissions has been changed. All artifacts generated by running `python main.py --prompt "..."` will now be placed in an `outputs/<commission_id>/` directory in the repository root (modified in `gandalf_workshop/workshop_manager.py`).
+**2. Planner Agent Enhancement (Supporting the LLM Coder):**
+    *   As per the original `AGENTS.md` guidance: Ensure `initialize_planner_agent_v1` produces plans (`PlanOutput`) that are detailed and structured enough to be genuinely useful for the LLM-based Coder. The current placeholder planner is too simple for complex tasks. It should break down the user prompt into actionable steps for the Coder LLM. This might involve making the Planner itself use an LLM.
 
-**2. Crucial Next Task: Implement LLM-Based Coder for V1 Compliance:**
+**3. Auditor Agent Enhancement:**
+    *   Expand `initialize_auditor_agent_v1` beyond a simple syntax check. It should:
+        *   Run linters (e.g., `flake8`, `pylint`) on the generated code.
+        *   Potentially execute basic functional tests if the Coder can also generate them or if they can be inferred from the `PlanOutput`. (This aligns with `docs/roadmap/V1.md` Test Case 2 which implies testing the generated utility app).
 
-The **immediate and highest priority** is to modify `initialize_coder_agent_v1` in `gandalf_workshop/artisan_guildhall/artisans.py` to meet the V1 LLM-based code generation requirement.
+**4. Iterative Development Loop (Post-V1 or Advanced V1):**
+    *   Review `WorkshopManager` to better support an iterative loop where audit feedback (especially from a more advanced Auditor) can be passed back to the Coder for revisions using the LLM. This aligns with the "Generate ↔ Critique" cycle in `high_level_design.md`.
 
-*   **Action:** Enhance `initialize_coder_agent_v1` to:
-    1.  Integrate with an LLM (e.g., using the `openai` or `litellm` libraries). API key management will be essential (assume environment variables or a secure method).
-    2.  Utilize the `CODER_CHARTER_PROMPT` (or a refined version) to instruct the LLM.
-    3.  Effectively use the `PlanOutput` from the Planner agent to guide the LLM's code generation.
-    4.  Ensure the LLM generates functional Python code for a non-trivial task (e.g., the word count CLI tool specified in `docs/roadmap/V1.md`'s Test Case 2).
-    5.  Save the generated Python code to a file (e.g., `app.py` or `main.py`) within the correct `outputs/<commission_id>/` directory.
-    6.  Return a `CodeOutput` object pointing to the generated file.
+**5. Configuration Management:**
+    *   Consider moving LLM preferences (preferred provider, specific model preferences per task type) into a configuration file rather than hardcoding or relying solely on `LLMProviderManager`'s defaults.
 
-**3. How to Verify V1 Coder Compliance:**
+**General Guidance:**
+*   **Branching:** Use feature branches (e.g., `feature/V1.1-coder-prompt-refinement`, `feature/V1.1-planner-llm`) for new work.
+*   **Testing:** Continue to write unit tests for new logic and ensure E2E tests (like the word count CLI tool) remain functional or are expanded.
+*   **Consult Documentation:** Refer to `docs/roadmap/V1.md`, `docs/1_strategic_overview/high_level_design.md`, and artisan charters.
+*   **AGENTS.md:** Update this file with your progress and next steps.
 
-To check if the Coder agent meets the revised V1 goals, you should:
-
-*   **Run a Test Commission:** Execute the main pipeline with a suitable prompt, for example:
-    ```bash
-    python main.py --prompt "Create a Python CLI tool that takes a text file as input and counts the occurrences of each word, then prints the top 5 words and their counts."
-    ```
-*   **Inspect Output:**
-    *   A new directory should be created, e.g., `outputs/commission_xxxxxxxx/` (where `xxxxxxxx` is the generated ID).
-    *   Inside this directory, you should find one or more Python files (e.g., `app.py`).
-    *   The content of these files **must be functional Python code** that attempts to solve the prompted task, generated by an LLM. It should not be a simple "Hello, World!" (unless that was the specific prompt) or an echo of the task.
-*   **Confirm LLM Usage (if necessary):**
-    *   Ideally, the `CodeOutput.message` from `initialize_coder_agent_v1` might include details about the LLM interaction or the filename.
-    *   If LLM usage isn't obvious, you might need to temporarily add logging within `initialize_coder_agent_v1` to confirm an LLM call was made and what its response was.
-*   **Functional Check:** Attempt to run the generated Python code with sample input to see if it works as expected by the prompt.
-
-**4. Other V1 Agent Enhancements (Supporting the LLM Coder):**
-
-Once the Coder agent is capable of LLM-based generation, review and enhance other V1 agents:
-
-*   **`feature/V1-planner-agent-basic`**: Ensure `initialize_planner_agent_v1` produces plans detailed and structured enough to be useful for the LLM-based Coder.
-*   **`feature/V1-auditor-agent-basic`**: Expand `initialize_auditor_agent_v1` to perform more meaningful static analysis on the LLM-generated code. Consider adding basic functional checks if feasible for V1 (e.g., does the generated script run without immediate errors for a given input?).
-*   **`feature/V1-orchestrator-loop`**: Review if `WorkshopManager` needs changes to better support an iterative LLM-based coding loop (e.g., feeding audit results back to the Coder for revision via LLM). This might be post-V1, but consider the hooks.
-*   **`feature/V1-communication-protocol`**: Review if `PlanOutput`, `CodeOutput`, `AuditOutput` data models need refinement for the LLM-based workflow.
-
-**5. General Guidance:**
-
-*   **Follow Test-Driven Development (TDD):** For the new Coder LLM logic, write unit tests. Ensure E2E tests from `docs/roadmap/V1.md` (especially Test Case 2 for the utility app) pass.
-*   **Branching:** Use `feature/V1-coder-agent-llm` (or similar) for the Coder implementation.
-*   **Consult Documentation:** Refer to `docs/roadmap/V1.md` (for updated V1 goals/tests) and `gandalf_workshop/artisan_guildhall/prompts.py` (for `CODER_CHARTER_PROMPT`).
-*   **AGENTS.md:** Update this file with your progress and next steps for the subsequent iteration.
-
-Good luck implementing the LLM-powered V1 Coder!
+This iteration has laid a strong foundation for LLM-driven development in the workshop!
+[end of AGENTS.md]
