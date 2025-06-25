@@ -1,5 +1,3 @@
-# AGENTS.md
-
 **Project:** Gandalf Workshop
 
 **Meta-Instructions for Future Jules Iterations:**
@@ -16,83 +14,66 @@
 
 ---
 
-## Task Summary: Implemented Live LLM Agent Chain with Gemini
+## Task Summary: Implemented Live LLM Auditor & Fixed .env Loading
 
-Jules successfully upgraded the Gandalf Workshop's V1 pipeline to use live LLM agents (Google Gemini) for planning and coding, replacing the previous mock implementations.
+Jules successfully implemented the `initialize_live_auditor_agent` and integrated it into the `WorkshopManager`. Additionally, a critical bug related to loading API keys from the `.env` file was identified and fixed.
 
 **Key Changes Made:**
 
-1.  **API Key Management:**
-    *   Added `_get_gemini_api_key()` in `gandalf_workshop/artisan_guildhall/artisans.py` to securely access the `GEMINI_API_KEY` from environment variables.
-    *   **Important:** The successful operation relies on the `GEMINI_API_KEY` being set in a `.env` file at the project root or as an environment variable. During development, there were issues with `.env` file persistence in the environment, which required temporary hardcoding for testing. This hardcoding has been removed.
+1.  **Live Auditor Implementation (`artisans.py`):**
+    *   Created `initialize_live_auditor_agent` function using Google Gemini.
+    *   It assesses generated code against the plan, providing a "PASS"/"FAIL" status and textual feedback.
+    *   Uses an adapted `GENERAL_INSPECTOR_CHARTER_PROMPT`.
 
-2.  **Gemini Integration:**
-    *   Added `google-generativeai` to `requirements.txt` and installed it.
-    *   Modified `initialize_live_planner_agent` in `artisans.py`:
-        *   Uses `google.generativeai` to call a Gemini model (e.g., `gemini-1.5-flash-latest`).
-        *   Passes `PLANNER_CHARTER_PROMPT` and the user prompt to Gemini.
-        *   Parses the plan from the Gemini response.
-    *   Modified `initialize_live_coder_agent` in `artisans.py`:
-        *   Uses `google.generativeai` to call a Gemini model.
-        *   Passes `CODER_CHARTER_PROMPT` and the plan to Gemini.
-        *   Saves the generated code from Gemini's response to `generated_code.py`.
-    *   Updated `workshop_manager.py` to call these new live agent functions.
+2.  **WorkshopManager Update (`workshop_manager.py`):**
+    *   Integrated a two-stage audit: syntax check followed by the new live LLM semantic check.
 
-3.  **Auditor Agent:**
-    *   Confirmed that the existing `initialize_auditor_agent_v1` (syntax check) is correctly called after the live coder agent.
+3.  **.env File Loading Fix (`main.py`):**
+    *   Identified that `python-dotenv` was not being used or was used incorrectly, preventing API keys from being loaded from the `.env` file.
+    *   Added `python-dotenv` to ensure it's installed.
+    *   Modified `main.py` to call `load_dotenv(dotenv_path=explicit_path, override=True)` at the very beginning of the script, before other application imports. The `explicit_path` is constructed to point to `.env` in the same directory as `main.py` (i.e., the project root).
+    *   This ensures that for local development, if a `.env` file is present in the project root, its variables will be loaded into the environment.
 
-4.  **Testing:**
-    *   Successfully tested the new live agent pipeline with both simple ("add two numbers") and complex ("streamlit calculator app") prompts.
-    *   The generated code was functional and passed the syntax audit.
-
-5.  **Documentation:**
-    *   Updated docstrings in `artisans.py` for the new live agent functions to reflect the use of Gemini.
-    *   This `AGENTS.md` file has been updated.
+4.  **Testing & API Key Handling Notes:**
+    *   Testing revealed that the sandbox environment used for these automated tasks does not have access to the user's local `.env` file, even with the corrected loading logic. The diagnostic `Warning: .env file not found at /app/.env.` confirms this.
+    *   Therefore, full end-to-end testing of live LLM calls still requires the user to run the application in an environment where the `.env` file (containing a valid `GEMINI_API_KEY`) is correctly placed at the project root, or where `GEMINI_API_KEY` is set as an actual environment variable.
+    *   The implemented code for loading `.env` files is now robust for standard local development setups.
 
 ---
 
 ## Next Steps for Gandalf Workshop
 
-Based on the current state and project roadmap, the following tasks are recommended for the next Jules iteration:
+Based on the current state and project roadmap:
 
-1.  **Robust `.env` File Handling & API Key Management:**
-    *   Investigate and ensure reliable loading of API keys from `.env` files across all execution environments. The previous iteration faced challenges with this.
-    *   Consider implementing a more centralized configuration management for API keys and other settings if the project complexity grows.
+1.  **Local Testing with Valid API Key:**
+    *   The **user/next Jules iteration** running this locally MUST ensure a valid `GEMINI_API_KEY` is present in a `.env` file in the project root (same directory as `main.py`) or as an environment variable.
+    *   With a valid key, thoroughly test the entire pipeline, especially:
+        *   The `initialize_live_auditor_agent`: Verify its assessment quality.
+        *   The end-to-end flow with simple and complex prompts.
 
-2.  **Implement Live Auditor Agent (LLM-based Semantic Audit):**
-    *   The current auditor only performs a syntax check (`py_compile`).
-    *   Create `initialize_live_auditor_agent` in `artisans.py`.
-    *   This agent should use an LLM (Gemini, keeping consistency) with the `GENERAL_INSPECTOR_CHARTER_PROMPT` (or a more specialized one) to perform a semantic audit of the code generated by the live Coder Agent.
-    *   The agent should analyze the code for correctness against the plan, adherence to best practices, potential bugs, etc.
-    *   Output should be an `AuditOutput` object, potentially with a path to a more detailed report.
-    *   Update `workshop_manager.py` to call this new live auditor.
+2.  **Refine WorkshopManager Error Handling for Planner/Coder Failures (Carry-over):**
+    *   If `initialize_live_planner_agent` fails (e.g., API error, bad plan), `WorkshopManager` should ideally not proceed to the coder. Add checks for planner output validity.
 
-3.  **Structured Output from Planner:**
-    *   The `PLANNER_CHARTER_PROMPT` hints at YAML or JSON output. The current live planner treats the LLM output as a list of tasks (splitting by newline).
-    *   Refine the planner agent to more reliably request and parse structured output (e.g., JSON) from the LLM. This might involve:
-        *   Modifying the `PLANNER_CHARTER_PROMPT` to be more explicit about the desired JSON schema.
-        *   Using features of the `google-generativeai` library that might support JSON mode or response schema validation, if available.
-        *   Implementing robust parsing and error handling for the structured output.
-    *   Update the `PlanOutput` data model if necessary to accommodate richer structured data.
+3.  **Environment Stability (Carry-over):**
+    *   For smoother development, ensure a consistent way to get all `requirements.txt` dependencies installed correctly in any work environment (e.g., a startup script or a Makefile target that runs `pip install -r requirements.txt -U --force-reinstall`).
 
-4.  **Enhanced Error Handling and Retry Mechanisms:**
-    *   Improve error handling for LLM API calls (e.g., specific exceptions for Gemini, rate limits, network issues).
-    *   Implement retry mechanisms (e.g., using a library like `tenacity`) for transient API errors.
+4.  **Structured Output from Planner (Carry-over):**
+    *   Refine planner agent to request and parse structured output (e.g., JSON) from the LLM. Update `PLANNER_CHARTER_PROMPT` and `PlanOutput` data model as needed.
 
-5.  **Expand Testing:**
-    *   Develop more comprehensive automated tests for the agent pipeline.
-    *   Include tests for various prompt types, edge cases, and potential failure modes of the LLM interactions.
-    *   Test the quality of generated plans and code more systematically.
+5.  **Enhanced Error Handling and Retry Mechanisms for LLM Calls (Carry-over):**
+    *   Implement better error handling (specific exceptions, retries with `tenacity`) for LLM API calls in all live agents.
 
-6.  **Explore CrewAI/LangGraph for Multi-Agent Orchestration (Longer Term):**
-    *   While direct LLM calls were used for simplicity in this iteration, refer to `docs/technology_stack.md`.
-    *   Begin exploring how `CrewAI` or `LangGraph` could be used to orchestrate the Planner, Coder, and Auditor agents as a more formal "crew," potentially enabling more complex interactions, feedback loops, and specialized sub-agents. This aligns with the original design intent.
+6.  **Expand Automated Testing (Carry-over):**
+    *   Once local live LLM testing is confirmed, develop more comprehensive automated tests (potentially using mocks for LLM calls to keep tests fast and deterministic, but also having separate integration tests that do hit the live API with a test key).
+
+7.  **Explore CrewAI/LangGraph for Multi-Agent Orchestration (Longer Term, Carry-over).**
 
 ## General Reminders for Next Jules:
 
-*   **Adherence to `CONTRIBUTING.md`**: Ensure all contributions follow the guidelines outlined in `CONTRIBUTING.md`.
-*   **Roadmap Alignment**: Refer to `docs/roadmap/V1.md` (and subsequent versions as they are created) for task identification and prioritization. The current focus is on fleshing out the V1 pipeline.
-*   **Project Vision**: Keep the overall project vision from `docs/VERSION_ROADMAP.md` and other strategic documents in mind.
-*   **`AGENTS.md`**: Always check for and follow instructions in any `AGENTS.md` files. This file is your primary source for task handovers.
+*   **`.env` File**: For local execution, ensure your `.env` file is in the project root (same directory as `main.py`) and contains necessary API keys like `GEMINI_API_KEY`.
+*   **Adherence to `CONTRIBUTING.md`**.
+*   **Roadmap Alignment**: `docs/roadmap/V1.md`.
+*   **Project Vision**: `docs/VERSION_ROADMAP.md`.
+*   **`AGENTS.md`**: Always check this file.
 
-Good luck with the next phase of development!
+Good luck! The `.env` loading should now work correctly in a standard local setup.

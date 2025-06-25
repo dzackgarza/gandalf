@@ -10,6 +10,21 @@ with the creation of a Blueprint.
 
 import argparse
 import uuid
+import os # Import os
+from pathlib import Path # Import Path
+from dotenv import load_dotenv # Import load_dotenv
+
+# Construct path to .env file relative to main.py's location
+# Assumes main.py is in the project root, and .env is also in the project root.
+dotenv_path = Path(__file__).resolve().parent / '.env'
+# print(f"Attempting to load .env from: {dotenv_path}") # Diagnostic
+if dotenv_path.exists():
+    load_dotenv(dotenv_path=dotenv_path, override=True)
+else:
+    print(f"Warning: .env file not found at {dotenv_path}. Environment variables may not be loaded.")
+
+# Test immediately if the key is loaded
+# print(f"GEMINI_API_KEY in main.py after load_dotenv (path: {dotenv_path}): {os.getenv('GEMINI_API_KEY')}") # Diagnostic, can be removed
 
 from gandalf_workshop.workshop_manager import WorkshopManager
 
@@ -25,6 +40,7 @@ def main():
     assigns it a unique tracking number, and forwards it to the Workshop
     Manager to commence the design phase (Blueprint creation).
     """
+    # load_dotenv() # Moved to top of script
     parser = argparse.ArgumentParser(
         description=("Gandalf Workshop CLI - Submit a new commission.")
     )
