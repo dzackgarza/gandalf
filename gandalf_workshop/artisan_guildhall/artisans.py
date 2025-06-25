@@ -36,6 +36,7 @@ from gandalf_workshop.specs.data_models import (
     AuditStatus,  # Added for Auditor V1
 )
 import py_compile  # Added for Auditor V1
+import tempfile # For safe auditing
 
 
 # Metaphor: These functions are like the Workshop Manager's assistants who
@@ -323,30 +324,30 @@ def initialize_auditor_agent_v1(
             report_path=None,
         )
 
+    # Use built-in compile() for a pure syntax check without file I/O for .pyc
     try:
-        # For syntax check only, we don't need to write a .pyc file.
-        # 'dfile' is the path for the .pyc file. Set to None if not needed.
-        # 'cfile' is the source path used in error messages.
-        py_compile.compile(
-            str(code_input.code_path),
-            dfile=None,  # Do not generate a .pyc file
-            cfile=str(code_input.code_path),
-            doraise=True,
-        )
+        with open(code_input.code_path, "r", encoding="utf-8") as f:
+            source_code = f.read()
+        compile(source_code, str(code_input.code_path), 'exec')
         logger.info("  V1 Auditor: Syntax check PASSED.")
         return AuditOutput(
             status=AuditStatus.SUCCESS, message="Syntax OK.", report_path=None
         )
-    except py_compile.PyCompileError as e:
-        logger.warning(f"  V1 Auditor: Syntax check FAILED. Error: {e}")
-        # Ensure the error message is a string
-        error_message = str(e.msg) if hasattr(e, "msg") else str(e)
+    except FileNotFoundError: # Handle if the source file itself is missing during read
+        logger.error(f"  Audit Error: Code file not found at {code_input.code_path} during read for compile.")
         return AuditOutput(
             status=AuditStatus.FAILURE,
-            message=f"Syntax error: {error_message}",
+            message=f"Code file (to be audited) not found during read: {code_input.code_path}",
             report_path=None,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except SyntaxError as e:
+        logger.warning(f"  V1 Auditor: Syntax check FAILED. Error: {e}")
+        return AuditOutput(
+            status=AuditStatus.FAILURE,
+            message=f"Syntax error: {e.msg} (line {e.lineno})", # More specific error
+            report_path=None,
+        )
+    except Exception as e:  # pylint: disable=broad-except # Catch any other exceptions
         logger.error(
             f"  V1 Auditor: Unexpected error during audit. Error: {e}", exc_info=True
         )
@@ -359,18 +360,20 @@ def initialize_auditor_agent_v1(
 
 def initialize_coder_agent_v1(
     plan_input: PlanOutput,
-    commission_id: str,
-    output_dir: Path = Path("gandalf_workshop/generated_code"),
+    commission_id: str,  # Retained for logging/context if needed inside agent
+    output_target_dir: Path,
 ) -> CodeOutput:
     """
     Initializes and runs a basic V1 Coder Agent.
-    For V1, this is a simple function that creates a file based on the plan.
-    For the "Hello, World" E2E case, it generates a Python file.
+    For V1, this is a simple function that creates a file based on the plan
+    directly within the provided output_target_dir.
 
     Args:
         plan_input: A PlanOutput object containing the tasks.
-        commission_id: A unique ID for this commission.
-        output_dir: The directory where the generated code will be saved.
+        commission_id: A unique ID for this commission (for context/logging).
+        output_target_dir: The specific directory where the generated code file
+                           should be saved. This directory will be created if
+                           it doesn't exist.
 
     Returns:
         A CodeOutput object.
@@ -381,17 +384,17 @@ def initialize_coder_agent_v1(
         f"'{commission_id}'."
     )
     logger.info(f"  Plan tasks: {plan_input.tasks}")
+    logger.info(f"  Output target directory: {output_target_dir}")
 
     # Ensure the output directory for the commission exists
-    commission_output_dir = output_dir / commission_id
-    commission_output_dir.mkdir(parents=True, exist_ok=True)
+    output_target_dir.mkdir(parents=True, exist_ok=True)
 
     # For V1, we assume the first task is the primary one.
     # And for "Hello, World", we specifically look for that task.
     if not plan_input.tasks:
         logger.error("  Coder Error: No tasks found in the plan.")
         return CodeOutput(
-            code_path=commission_output_dir,  # Return dir path on error
+            code_path=output_target_dir,  # Return dir path on error
             message="Coder Error: No tasks found in plan.",
         )
 
@@ -401,16 +404,16 @@ def initialize_coder_agent_v1(
     message: str = ""
 
     if "Create a Python file that prints 'Hello, World!'" in first_task:
-        file_name = "main.py"
+        file_name = "main.py" # Standardized to main.py for "Hello, World!"
         file_content = 'print("Hello, World!")\n'
-        file_path = commission_output_dir / file_name
+        file_path = output_target_dir / file_name
         message = f"Successfully created {file_name} for 'Hello, World!' task."
         logger.info(f"  V1 Coder: Preparing to create '{file_name}' for Hello World.")
     else:
         # Generic task handling: create a text file with task description
         file_name = "task_output.txt"
         file_content = f"Task from plan:\n{first_task}\n"
-        file_path = commission_output_dir / file_name
+        file_path = output_target_dir / file_name
         message = f"Successfully created {file_name} for generic task."
         logger.info(
             f"  V1 Coder: Preparing to create '{file_name}' for generic task: {first_task[:50]}..."
@@ -427,12 +430,12 @@ def initialize_coder_agent_v1(
                 f"  Coder Error: Could not write to file {file_path}. Error: {e}"
             )
             return CodeOutput(
-                code_path=commission_output_dir,  # Return dir path on error
+                code_path=output_target_dir,  # Return dir path on error
                 message=f"Coder Error: Could not write to file {file_path}. Error: {e}",
             )
     else:  # Should not happen if logic is correct, but as a safeguard
         logger.error("  Coder Error: File path was not set.")
         return CodeOutput(
-            code_path=commission_output_dir,
+            code_path=output_target_dir,
             message="Coder Error: Internal error, file path not set.",
         )
