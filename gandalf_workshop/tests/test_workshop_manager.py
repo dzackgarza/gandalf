@@ -1,6 +1,9 @@
 import pytest
 import shutil
 from pathlib import Path
+import pytest
+import shutil
+from pathlib import Path
 from gandalf_workshop.workshop_manager import WorkshopManager
 
 # from gandalf_workshop.specs.data_models import PMReviewDecision # No longer directly used here
@@ -102,7 +105,7 @@ def test_full_workflow_pm_direct_approval(capsys):
 
     captured = capsys.readouterr()
     assert (
-        f"Commission '{TEST_COMMISSION_ID_SUCCESS}' Completed Successfully"
+        f"===== Full Workflow for Commission: {TEST_COMMISSION_ID_SUCCESS} Completed Successfully ====="  # noqa: E501
         in captured.out
     )
     assert "APPROVED by PM" in captured.out  # Ensure PM approval message is present
@@ -121,26 +124,39 @@ def test_full_workflow_pm_rejection_then_approval(capsys):
 
     captured = capsys.readouterr()
     assert "REVISION REQUESTED by PM" in captured.out  # First review
-    assert (
-        "Revised project summary: now simple and MVP focused" in captured.out
-    )  # Indicates revision happened
+    # The "Revised project summary..." is written to the blueprint, not stdout by default
+    # So we check the content of the revised blueprint file.
     assert "APPROVED by PM" in captured.out  # Second review
     assert (
-        f"Commission '{TEST_COMMISSION_ID_PM_REJECT_ONCE}' Completed Successfully"
+        f"===== Full Workflow for Commission: {TEST_COMMISSION_ID_PM_REJECT_ONCE} Completed Successfully ====="  # noqa: E501
         in captured.out
     )
 
-    # Check that a revised blueprint was created
+    # Check that a revised blueprint was created and contains the updated summary
     blueprint_dir = (
         Path("gandalf_workshop/blueprints") / TEST_COMMISSION_ID_PM_REJECT_ONCE
     )
-    original_bp = blueprint_dir / "blueprint.yaml"
-    revised_bps = [
+    original_bp_path = blueprint_dir / "blueprint.yaml"
+    revised_bp_paths = [
         p
         for p in blueprint_dir.iterdir()
-        if p.name != original_bp.name and p.suffix == ".yaml"
+        if p.name != original_bp_path.name and p.suffix == ".yaml"
     ]
-    assert len(revised_bps) > 0, "No revised blueprint file found"
+    assert len(revised_bp_paths) > 0, "No revised blueprint file found"
+
+    # Assume the latest revised blueprint is the one to check
+    # This logic might need to be more robust if multiple revisions create multiple files
+    # and the naming isn't strictly sequential for testing.
+    # For the current mock, request_blueprint_strategic_revision creates a new file.
+    revised_bp_to_check = max(revised_bp_paths, key=lambda p: p.stat().st_mtime)
+
+    import yaml
+    with open(revised_bp_to_check, "r") as f:
+        revised_content = yaml.safe_load(f)
+    assert "Revised project summary: now simple and MVP focused" in revised_content.get(
+        "project_summary", ""
+    ), "Revised project summary not found in the final revised blueprint"
+    assert "Revised based on PM Review" in revised_content.get("revisions", [{}])[-1].get("notes", "")
 
 
 def test_full_workflow_pm_fails_max_cycles(capsys):
@@ -180,6 +196,39 @@ def test_legacy_blueprint_revision_method_exists_and_runs():
     initial blueprinting but might be used for technical revisions later.
     """
     manager = WorkshopManager()
+    commission_id = "legacy_rev_test_004"
+    blueprint_dir = Path("gandalf_workshop/blueprints") / commission_id
+    blueprint_dir.mkdir(parents=True, exist_ok=True)
+    original_bp_path = blueprint_dir / "blueprint.yaml"
+    with open(original_bp_path, "w") as f:
+        f.write(
+            "commission_id: legacy_rev_test_004\n"
+            "project_summary: Test for legacy revision."
+        )
+
+    failure_history = {"error": "Technical flaw found by QA", "details": "..."}
+
+    try:
+        revised_path = manager.request_blueprint_revision(
+            commission_id=commission_id,
+            original_blueprint_path=original_bp_path,
+            failure_history=failure_history,
+        )
+        assert revised_path.exists()
+        assert revised_path.name != original_bp_path.name
+    finally:
+        if blueprint_dir.exists():
+            shutil.rmtree(blueprint_dir)
+
+
+# To run these tests, navigate to the repository root and use:
+# python -m pytest
+# or if pytest is not found, ensure it's installed (pip install pytest)
+# and your PYTHONPATH is set up if needed, e.g.:
+# PYTHONPATH=. python -m pytest
+# For coverage:
+# PYTHONPATH=. python -m pytest --cov=gandalf_workshop --cov-report=html
+# (then open htmlcov/index.html)
     commission_id = "legacy_rev_test_004"
     blueprint_dir = Path("gandalf_workshop/blueprints") / commission_id
     blueprint_dir.mkdir(parents=True, exist_ok=True)

@@ -6,6 +6,11 @@ This module provides functions to initialize and configure "Artisan Crews"
 Workshop Manager briefs craftsmen (Planner, Coder, Inspector crews) before
 they start a commission. Each function here would typically set up agents
 (e.g., using CrewAI, AutoGen, LangGraph) with charters, tools, and context.
+This module provides functions to initialize and configure "Artisan Crews"
+(specialized AI agent teams). It's like a workshop assembly hall where the
+Workshop Manager briefs craftsmen (Planner, Coder, Inspector crews) before
+they start a commission. Each function here would typically set up agents
+(e.g., using CrewAI, AutoGen, LangGraph) with charters, tools, and context.
 """
 
 # from .prompts import (PLANNER_CHARTER_PROMPT, CODER_CHARTER_PROMPT,
@@ -13,6 +18,9 @@ they start a commission. Each function here would typically set up agents
 # Import necessary AI framework components here, e.g.:
 # from crewai import Agent, Task, Crew, Process
 
+# Metaphor: These functions are like the Workshop Manager's assistants who
+# know how to quickly assemble Planners, Coders, or Inspectors, providing
+# them with their official charters (prompts) and tools.
 # Metaphor: These functions are like the Workshop Manager's assistants who
 # know how to quickly assemble Planners, Coders, or Inspectors, providing
 # them with their official charters (prompts) and tools.
@@ -146,6 +154,7 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
         pathlib.Path: Path to the generated PM_Review.json file.
     """
     import yaml  # Added for reading blueprint content
+    import logging  # For improved exception logging
     from pathlib import Path
     from datetime import datetime, timezone
     from gandalf_workshop.specs.data_models import PMReview, PMReviewDecision
@@ -158,31 +167,38 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
         with open(blueprint_path, "r") as f:
             blueprint_content = yaml.safe_load(f)
         summary = blueprint_content.get("project_summary", "").lower()
-        if "simple" in summary or "mvp" in summary:
-            decision = PMReviewDecision.APPROVED
-            rationale = (
-                "Mock PM Review: Blueprint approved. Summary indicates a simple scope."
-            )
-            suggested_focus_areas = None
-        else:
+        if "complex" in summary:
             decision = PMReviewDecision.REVISION_REQUESTED
             rationale = (
                 "Mock PM Review: Blueprint needs revision. "
-                "Summary seems complex. Please simplify for MVP."
+                "Summary indicates complexity. Please simplify." # Added "Please simplify"
             )
-            suggested_focus_areas = [
-                "project_summary",
-                "product_specifications.modules",
-            ]
+            suggested_focus_areas = ["project_summary", "product_specifications.modules"]
+        elif "simple" in summary or "mvp" in summary:  # Only if not complex
+            decision = PMReviewDecision.APPROVED
+            rationale = (
+                "Mock PM Review: Blueprint approved. "
+                "Summary indicates a simple or MVP scope."
+            )
+            suggested_focus_areas = None
+        else:  # Default if neither complex, simple, nor mvp explicitly mentioned
+            decision = PMReviewDecision.REVISION_REQUESTED
+            rationale = (
+                "Mock PM Review: Blueprint needs revision. Scope clarity needed "
+                "(neither explicitly simple/mvp nor complex)."
+            )
+            suggested_focus_areas = ["project_summary"]
     except Exception as e:  # pylint: disable=broad-except
-        print(
-            f"Mock PM Review: Error reading blueprint {blueprint_path}: {e}. "
-            f"Defaulting to REVISION_REQUESTED."
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Mock PM Review: Error reading blueprint {blueprint_path}. "
+            f"Defaulting to REVISION_REQUESTED.",
+            exc_info=True,
         )
         decision = PMReviewDecision.REVISION_REQUESTED
         rationale = (
             f"Mock PM Review: Error reading blueprint. Defaulting to "
-            f"REVISION_REQUESTED. Error: {e}"
+            f"REVISION_REQUESTED. Error: {e} (See logs for details)"
         )
         suggested_focus_areas = ["project_summary"]
 
@@ -212,53 +228,6 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
     return review_file_path
 
 
-if __name__ == "__main__":
-    from pathlib import Path
-
-    print("Attempting to initialize artisan crews (placeholders):")
-    initialize_planning_crew()
-    initialize_coding_crew()
-    initialize_inspection_crew()
-    print("Initialization calls completed.")
-
-    # Test PM Review Crew
-    print("\nTesting PM Review Crew (Mock):")
-    mock_bp_dir = Path("gandalf_workshop/blueprints/pm_crew_test_001")
-    mock_bp_dir.mkdir(parents=True, exist_ok=True)
-    mock_bp_path = mock_bp_dir / "blueprint.yaml"
-    with open(mock_bp_path, "w") as bp_file:
-        bp_file.write("commission_id: pm_crew_test_001\n")
-        # Intentionally long line for testing E501 fix (now split)
-        bp_file.write(
-            "project_summary: A very complex project that needs "
-            "simplification for the MVP.\n"
-        )
-        bp_file.write("key_objectives:\n  - Achieve world peace\n")
-        bp_file.write(
-            "revisions:\n  - version: '0.9'\n    date: '2023-01-01'\n"
-            "    notes: 'Initial Draft for PM test'\n"
-        )
-
-    review_path = initialize_pm_review_crew(
-        mock_bp_path, "pm_crew_test_001", blueprint_version="0.9"
-    )
-    print(f"PM Review test generated: {review_path}")
-    with open(review_path, "r") as rf:
-        print("Review Content:\n", rf.read())
-
-    # Test with "simple" in summary for approval
-    with open(mock_bp_path, "w") as bp_file:
-        bp_file.write("commission_id: pm_crew_test_001\n")
-        bp_file.write("project_summary: A very simple project.\n")  # Shorter line
-        bp_file.write("key_objectives:\n  - Achieve local peace\n")
-        bp_file.write(
-            "revisions:\n  - version: '1.0'\n    date: '2023-01-02'\n"
-            "    notes: 'Revised Draft for PM test'\n"
-        )
-
-    review_path_approved = initialize_pm_review_crew(
-        mock_bp_path, "pm_crew_test_001", blueprint_version="1.0"
-    )
-    print(f"PM Review test (approved) generated: {review_path_approved}")
-    with open(review_path_approved, "r") as rf:
-        print("Review Content (Approved):\n", rf.read())
+# The __main__ block below was moved to a test in:
+# gandalf_workshop/tests/test_artisans.py
+# to allow pytest to include its logic in coverage reports.

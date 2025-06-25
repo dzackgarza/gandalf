@@ -41,10 +41,6 @@ def main():
 
     print("Gandalf Workshop: Received new commission request.")
 
-    # Initialize the Workshop Manager
-    # Metaphor: The Workshop Manager is summoned to oversee the new commission.
-    manager = WorkshopManager()
-
     # Generate a unique commission ID
     # Metaphor: A unique serial number is stamped onto the new commission's
     # docket.

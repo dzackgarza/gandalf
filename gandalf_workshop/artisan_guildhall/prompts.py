@@ -175,9 +175,3 @@ building the wrong product, even if the Blueprint is technically coherent.
 Adhere strictly to the `PM_Review.json` schema. Do not add any
 conversational text outside the JSON output.
 """
-
-if __name__ == "__main__":
-    print("Planner Charter:\n", PLANNER_CHARTER_PROMPT)
-    print("\nCoder Charter:\n", CODER_CHARTER_PROMPT)
-    print("\nGeneral Inspector Charter:\n", GENERAL_INSPECTOR_CHARTER_PROMPT)
-    print("\nProduct Manager Charter:\n", PRODUCT_MANAGER_CHARTER_PROMPT)
