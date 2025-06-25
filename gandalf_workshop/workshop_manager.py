@@ -20,6 +20,7 @@ from gandalf_workshop.artisan_guildhall.artisans import (
     initialize_live_planner_agent,
     initialize_live_coder_agent, # Changed from initialize_coder_agent_v1
     initialize_auditor_agent_v1,
+    initialize_live_auditor_agent, # Added new live auditor
 )
 
 # from gandalf_workshop.specs.data_models import PMReview, PMReviewDecision # Not used in V1 simple loop
@@ -92,24 +93,49 @@ class WorkshopManager:
             error_message = code_output.message or f"Live Coder Agent was supposed to create a file at {code_output.code_path} but it was not found or is not a file."
             raise FileNotFoundError(error_message)
 
-        # 3. Call Auditor Agent
-        logger.info(f"Workshop Manager: Invoking Auditor Agent for '{commission_id}'.")
-        audit_output = initialize_auditor_agent_v1(
+        # 3. Call Syntax Auditor Agent (Pre-check)
+        logger.info(f"Workshop Manager: Invoking Syntax Auditor Agent for '{commission_id}'.")
+        syntax_audit_output = initialize_auditor_agent_v1(
             code_input=code_output, commission_id=commission_id
         )
         logger.info(
-            f"Workshop Manager: Auditor Agent reported: {audit_output.status} - {audit_output.message}"
+            f"Workshop Manager: Syntax Auditor Agent reported: {syntax_audit_output.status} - {syntax_audit_output.message}"
         )
 
-        if audit_output.status == AuditStatus.FAILURE:
+        if syntax_audit_output.status == AuditStatus.FAILURE:
             logger.error(
-                f"Workshop Manager: Commission '{commission_id}' failed audit. Reason: {audit_output.message}"
+                f"Workshop Manager: Commission '{commission_id}' failed syntax audit. Reason: {syntax_audit_output.message}"
             )
-            # In a real V1, we might raise an exception or return a specific indicator of failure.
-            # For now, we'll let it proceed but the message indicates failure.
-            # Consider raising an exception for clearer failure handling:
             raise Exception(
-                f"Audit failed for commission '{commission_id}': {audit_output.message}"
+                f"Syntax audit failed for commission '{commission_id}': {syntax_audit_output.message}"
+            )
+
+        # If syntax check passes, proceed to Live LLM Auditor
+        logger.info(f"Workshop Manager: Invoking Live Auditor Agent for '{commission_id}'.")
+
+        # Read the generated code to pass as string
+        try:
+            with open(code_output.code_path, "r", encoding="utf-8") as f:
+                generated_code_str = f.read()
+        except Exception as e:
+            logger.error(f"Workshop Manager: Failed to read generated code file {code_output.code_path}. Error: {e}")
+            raise Exception(f"Failed to read generated code file for live audit: {e}")
+
+        live_audit_output = initialize_live_auditor_agent(
+            generated_code=generated_code_str,
+            plan_input=plan_output, # Pass the plan_output from the planner
+            commission_id=commission_id
+        )
+        logger.info(
+            f"Workshop Manager: Live Auditor Agent reported: {live_audit_output.status} - {live_audit_output.message}"
+        )
+
+        if live_audit_output.status == AuditStatus.FAILURE:
+            logger.error(
+                f"Workshop Manager: Commission '{commission_id}' failed live semantic audit. Reason: {live_audit_output.message}"
+            )
+            raise Exception(
+                f"Live semantic audit failed for commission '{commission_id}': {live_audit_output.message}"
             )
 
         logger.info(

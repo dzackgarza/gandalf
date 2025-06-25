@@ -67,6 +67,13 @@ def _get_gemini_api_key() -> str:
     #         "Please set it before running the live agents."
     #     )
     # return api_key
+    # api_key = os.getenv("GEMINI_API_KEY")
+    # if not api_key:
+    #     raise ValueError(
+    #         "GEMINI_API_KEY environment variable not set. "
+    #         "Please set it before running the live agents."
+    #     )
+    # return api_key
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError(
@@ -293,6 +300,114 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str) -> PlanO
     # and exception was NOT caught, then plan would be unbound here.
     # However, the UnboundLocalError for 'e' was the primary concern from the traceback.
     return plan # Assuming plan was successfully defined in the try block
+
+
+def initialize_live_auditor_agent(
+    generated_code: str,
+    plan_input: PlanOutput,
+    commission_id: str
+) -> AuditOutput:
+    """
+    Initializes and runs a live LLM-based Auditor Agent using the Gemini API.
+    This agent performs a semantic audit of the code against the plan.
+
+    Args:
+        generated_code: The string content of the code to be audited.
+        plan_input: A PlanOutput object containing the tasks the code should implement.
+        commission_id: A unique ID for this commission (for context/logging).
+
+    Returns:
+        An AuditOutput object.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Artisan Assembly: Live Auditor Agent activated for commission '{commission_id}'."
+    )
+    logger.info(f"  Auditing code snippet (first 200 chars): {generated_code[:200]}...")
+    logger.info(f"  Against plan tasks: {plan_input.tasks}")
+
+    try:
+        api_key = _get_gemini_api_key()
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
+        from .prompts import GENERAL_INSPECTOR_CHARTER_PROMPT # Using the general one for now
+
+        formatted_plan = "\n".join(
+            f"- {task}" for task in plan_input.tasks
+        )
+
+        # Simplified prompt for PASS/FAIL and summary
+        audit_request_prompt = f"""{GENERAL_INSPECTOR_CHARTER_PROMPT}
+
+Your task is to review the following Python code based on the provided plan.
+
+**Plan:**
+{formatted_plan}
+
+**Code to Review:**
+```python
+{generated_code}
+```
+
+**Instructions:**
+1.  Determine if the code successfully and correctly implements all aspects of the plan.
+2.  Identify any bugs, deviations from the plan, or critical issues.
+3.  Provide a concise summary of your findings.
+4.  Conclude your response with a single line containing ONLY "AUDIT_RESULT: PASS" if the code meets the plan's requirements and is functionally sound, or "AUDIT_RESULT: FAIL" if there are significant issues or deviations.
+
+Example Response Format:
+The code generally implements the feature for adding two numbers. However, it lacks error handling for non-numeric inputs as implicitly required by a robust function.
+AUDIT_RESULT: FAIL
+"""
+
+        response = model.generate_content(audit_request_prompt)
+        llm_response_text = response.text
+        logger.info(f"  Live Auditor: Raw LLM response: {llm_response_text[:300]}...")
+
+        # Parse the response
+        audit_status = AuditStatus.FAILURE # Default to failure
+        audit_message = "Live Auditor: Could not determine audit outcome from LLM response."
+
+        if llm_response_text:
+            lines = llm_response_text.strip().split('\n')
+            result_line = ""
+            for line in reversed(lines): # Check from the end for the result line
+                if line.startswith("AUDIT_RESULT:"):
+                    result_line = line.strip()
+                    break
+
+            if "AUDIT_RESULT: PASS" in result_line:
+                audit_status = AuditStatus.SUCCESS
+                audit_message = llm_response_text.replace(result_line, "").strip()
+                logger.info("  Live Auditor: Parsed result - PASS")
+            elif "AUDIT_RESULT: FAIL" in result_line:
+                audit_status = AuditStatus.FAILURE
+                audit_message = llm_response_text.replace(result_line, "").strip()
+                logger.info("  Live Auditor: Parsed result - FAIL")
+            else:
+                # If specific line not found, use the whole text but still mark as failure
+                # as the format wasn't followed.
+                audit_message = f"Live Auditor: LLM response did not contain clear PASS/FAIL line. Response: {llm_response_text}"
+                logger.warning(f"  Live Auditor: Could not parse specific AUDIT_RESULT line. Full response: {llm_response_text}")
+        else:
+            audit_message = "Live Auditor: LLM returned an empty response."
+            logger.warning(audit_message)
+
+
+        return AuditOutput(
+            status=audit_status,
+            message=audit_message,
+            report_path=None # No separate report file for now
+        )
+
+    except Exception as e:
+        logger.error(f"  Live Auditor: Exception caught: {type(e).__name__} - {str(e)}", exc_info=True)
+        return AuditOutput(
+            status=AuditStatus.FAILURE,
+            message=f"Live Auditor Error: Exception - {type(e).__name__} - {str(e)}",
+            report_path=None
+        )
 
 
 def initialize_live_coder_agent(
