@@ -25,9 +25,11 @@ from gandalf_workshop.specs.data_models import (
     AuditOutput,
     AuditStatus,
 )
-from .prompts import CODER_CHARTER_PROMPT
+# Import the default and alternative charters
+from .prompts import CODER_CHARTER_PROMPT, CODER_CHARTER_PROMPT_ALT_1, ORACLE_ASSISTANCE_PROMPT, HELP_EXAMPLE_EXTRACTOR_PROMPT
 
 import py_compile
+import json # For parsing JSON output from help extractor
 import tempfile # For safe auditing
 
 logger_artisans = logging.getLogger(__name__)
@@ -81,6 +83,7 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str, llm_conf
     provider_name = llm_config["provider_name"]
     client = llm_config["client"]
     selected_model_name = llm_config["models"][0] if llm_config.get("models") else None
+    temperature = llm_config.get("temperature") # Define temperature
 
     if not selected_model_name:
         logger.error(f"  Live Planner: No models found in LLM configuration for provider {provider_name}.")
@@ -89,23 +92,37 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str, llm_conf
     logger.info(f"  Live Planner: Using {provider_name} with model {selected_model_name}.")
 
     try:
-        from .prompts import PLANNER_CHARTER_PROMPT
-        full_prompt = f"{PLANNER_CHARTER_PROMPT}\n\nUser Request:\n{user_prompt}"
+        from .prompts import PLANNER_CHARTER_PROMPT # New prompt
+        # Replace placeholder in the new PLANNER_CHARTER_PROMPT
+        full_prompt = PLANNER_CHARTER_PROMPT.replace("{user_request_placeholder}", user_prompt)
         raw_plan = ""
 
+        # ... (LLM call logic remains the same for Gemini, Mistral, TogetherAI) ...
+        # Current LLM call logic:
         if provider_name == "gemini":
             model_instance = client.GenerativeModel(selected_model_name)
-            response = model_instance.generate_content(full_prompt)
+            gen_config_args = {}
+            if temperature is not None:
+                gen_config_args["temperature"] = temperature
+            response = model_instance.generate_content(full_prompt, generation_config=genai.types.GenerationConfig(**gen_config_args) if gen_config_args else None)
             raw_plan = response.text
         elif provider_name == "mistral":
             messages = [{"role": "user", "content": full_prompt}]
-            chat_response = client.chat.complete(model=selected_model_name, messages=messages)
+            mistral_params = {"model": selected_model_name, "messages": messages}
+            if temperature is not None:
+                mistral_params["temperature"] = temperature
+            chat_response = client.chat.complete(**mistral_params)
             raw_plan = chat_response.choices[0].message.content
         elif provider_name == "together_ai":
-            together_prompt = f"[INST] {full_prompt} [/INST]"
-            response = client.completions.create(
-                prompt=together_prompt, model=selected_model_name, max_tokens=1024, stop=["[/INST]", "</s>"]
-            )
+            together_params = {
+                "prompt": full_prompt,
+                "model": selected_model_name,
+                "max_tokens": 1024,
+                "stop": ["</s>"]
+            }
+            if temperature is not None:
+                together_params["temperature"] = temperature
+            response = client.completions.create(**together_params)
             if response and response.choices:
                 raw_plan = response.choices[0].text.strip()
             else:
@@ -114,10 +131,17 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str, llm_conf
             logger.error(f"  Live Planner: Provider {provider_name} not supported for LLM call.")
             return PlanOutput(tasks=[f"Error: Planner provider {provider_name} not supported."], details=None)
 
+
         logger.info(f"  Live Planner: Raw LLM response: {raw_plan[:200]}...")
         if raw_plan:
-            tasks = [task.strip() for task in raw_plan.split('\n') if task.strip()]
-            if not tasks: tasks = [raw_plan.strip()]
+            # Parsing logic: split by newline, remove empty lines, strip whitespace.
+            # This aligns with the new PLANNER_CHARTER_PROMPT's output format.
+            tasks = [task.strip() for task in raw_plan.split('\n') if task.strip() and not task.startswith("User Request:")]
+            # Filter out potential re-echoing of the "Your Task List:" header if the LLM includes it
+            tasks = [task for task in tasks if task.lower() != "your task list:"]
+
+            if not tasks: # If splitting by newline yields nothing, maybe the LLM returned one line.
+                tasks = [raw_plan.strip()]
             plan = PlanOutput(tasks=tasks, details={"raw_response": raw_plan})
             logger.info(f"  Live Planner: Parsed tasks: {tasks}")
         else:
@@ -227,7 +251,11 @@ AUDIT_RESULT: FAIL
         return AuditOutput(status=AuditStatus.FAILURE, message=f"Live Auditor Error: {type(e).__name__} - {str(e)}", report_path=None)
 
 def initialize_live_coder_agent(
-    plan_input: PlanOutput, commission_id: str, output_target_dir_base: Path, llm_config: Optional[Dict[str, Any]] = None
+    plan_input: PlanOutput,
+    commission_id: str,
+    output_target_dir_base: Path,
+    llm_config: Optional[Dict[str, Any]] = None,
+    prompt_charter_override: Optional[str] = None # New argument
 ) -> CodeOutput:
     logger = logging.getLogger(__name__)
     logger.info(f"Artisan Assembly: Live Coder Agent activated for commission '{commission_id}'.")
@@ -586,3 +614,165 @@ def initialize_coder_agent_v1(
     except IOError as e:
         logger_artisans.error(f"  Coder Error: Could not write to {file_path}. Error: {e}", exc_info=True)
         return CodeOutput(code_path=output_target_dir, message=f"Coder Error: Write failed - {e}")
+
+
+def invoke_oracle_llm_for_advice(
+    user_request: str,
+    current_plan_str: str,
+    failed_code_str: str,
+    audit_feedback_str: str,
+    llm_config: Optional[Dict[str, Any]]
+) -> str:
+    logger = logging.getLogger(__name__)
+    logger.info("Artisan Assembly: Oracle LLM for Advice activated.")
+
+    if not llm_config or not llm_config.get("client"):
+        logger.error("  Oracle LLM: LLM configuration not provided or client missing.")
+        return "Oracle Error: LLM not configured."
+
+    provider_name = llm_config.get("provider_name", "Unknown")
+    client = llm_config["client"]
+    selected_model_name = llm_config.get("oracle_model_name") or (llm_config["models"][0] if llm_config.get("models") else None)
+
+    if not selected_model_name:
+        logger.error(f"  Oracle LLM: No models found or specified for provider {provider_name}.")
+        return f"Oracle Error: No models available/specified for {provider_name}."
+
+    temperature = llm_config.get("temperature")
+
+    logger.info(f"  Oracle LLM: Using {provider_name} with model {selected_model_name}" + (f" and temperature {temperature}" if temperature is not None else ""))
+
+    try:
+        # Ensure ORACLE_ASSISTANCE_PROMPT is imported if not already at top level
+        from .prompts import ORACLE_ASSISTANCE_PROMPT
+
+        prompt = ORACLE_ASSISTANCE_PROMPT.format(
+            user_request=user_request,
+            current_plan=current_plan_str,
+            failed_code=failed_code_str,
+            audit_feedback=audit_feedback_str
+        )
+
+        advice_text = ""
+
+        if provider_name == "gemini":
+            model_instance = client.GenerativeModel(selected_model_name)
+            gen_config_args = {}
+            if temperature is not None:
+                gen_config_args["temperature"] = temperature
+            response = model_instance.generate_content(prompt, generation_config=genai.types.GenerationConfig(**gen_config_args) if gen_config_args else None)
+            advice_text = response.text
+        elif provider_name == "mistral":
+            messages = [{"role": "user", "content": prompt}]
+            mistral_params = {"model": selected_model_name, "messages": messages}
+            if temperature is not None:
+                mistral_params["temperature"] = temperature
+            chat_response = client.chat.complete(**mistral_params)
+            advice_text = chat_response.choices[0].message.content
+        elif provider_name == "together_ai":
+            together_params = {
+                "prompt": f"[INST] {prompt} [/INST]",
+                "model": selected_model_name,
+                "max_tokens": 1024,
+            }
+            if temperature is not None:
+                together_params["temperature"] = temperature
+            response = client.completions.create(**together_params)
+            if response and response.choices:
+                advice_text = response.choices[0].text.strip()
+            else:
+                raise Exception("Together AI (Oracle) response was empty or malformed.")
+        else:
+            logger.error(f"  Oracle LLM: Provider {provider_name} not supported.")
+            return f"Oracle Error: Provider {provider_name} not supported."
+
+        logger.info(f"  Oracle LLM: Raw advice response: {advice_text[:300]}...")
+        return advice_text.strip()
+
+    except Exception as e:
+        logger.error(f"  Oracle LLM: Exception caught: {type(e).__name__} - {str(e)}", exc_info=True)
+        return f"Oracle Error during advice generation: {type(e).__name__} - {str(e)}"
+
+print("DEBUG: artisans.py - invoke_oracle_llm_for_advice IS DEFINED") # Debug print
+
+
+def initialize_help_example_extractor_agent(
+    help_text: str,
+    llm_config: Optional[Dict[str, Any]]
+) -> Dict[str, Optional[str]]:
+    logger = logging.getLogger(__name__)
+    logger.info("Artisan Assembly: Help Example Extractor Agent activated.")
+
+    default_error_response = {
+        "command": None,
+        "stdin_input": None,
+        "notes": "Help example extraction failed or no example found."
+    }
+
+    if not llm_config or not llm_config.get("client"):
+        logger.error("  Help Extractor: LLM configuration not provided or client missing.")
+        default_error_response["notes"] = "Help Extractor Error: LLM not configured."
+        return default_error_response
+
+    provider_name = llm_config.get("provider_name", "Unknown")
+    client = llm_config["client"]
+    selected_model_name = llm_config.get("help_extractor_model_name") or \
+                          (llm_config["models"][0] if llm_config.get("models") else None)
+
+    if not selected_model_name:
+        logger.error(f"  Help Extractor: No models found/specified for provider {provider_name}.")
+        default_error_response["notes"] = f"Help Extractor Error: No models for {provider_name}."
+        return default_error_response
+
+    temperature = llm_config.get("temperature", 0.3)
+
+    logger.info(f"  Help Extractor: Using {provider_name} with model {selected_model_name} and temperature {temperature}")
+
+    try:
+        # Ensure HELP_EXAMPLE_EXTRACTOR_PROMPT is imported (already done at module level)
+        prompt = HELP_EXAMPLE_EXTRACTOR_PROMPT.format(help_text_placeholder=help_text)
+        raw_llm_response = ""
+
+        if provider_name == "gemini":
+            model_instance = client.GenerativeModel(selected_model_name)
+            response = model_instance.generate_content(prompt, generation_config=genai.types.GenerationConfig(temperature=temperature))
+            raw_llm_response = response.text
+        elif provider_name == "mistral":
+            messages = [{"role": "user", "content": prompt}]
+            chat_response = client.chat.complete(model=selected_model_name, messages=messages, temperature=temperature)
+            raw_llm_response = chat_response.choices[0].message.content
+        elif provider_name == "together_ai":
+            response = client.completions.create(
+                prompt=f"[INST] {prompt} [/INST]", model=selected_model_name, max_tokens=512, temperature=temperature
+            )
+            if response and response.choices:
+                raw_llm_response = response.choices[0].text.strip()
+            else:
+                raise Exception("Together AI (Help Extractor) response was empty or malformed.")
+        else:
+            logger.error(f"  Help Extractor: Provider {provider_name} not supported.")
+            default_error_response["notes"] = f"Help Extractor Error: Provider {provider_name} not supported."
+            return default_error_response
+
+        logger.info(f"  Help Extractor: Raw LLM response: {raw_llm_response[:300]}...")
+
+        json_match = re.search(r"```json\s*\n?(.*?)\n?```", raw_llm_response, re.DOTALL)
+        json_str_to_parse = json_match.group(1) if json_match else raw_llm_response
+
+        extracted_data = json.loads(json_str_to_parse)
+        return {
+            "command": extracted_data.get("command"),
+            "stdin_input": extracted_data.get("stdin_input"),
+            "notes": extracted_data.get("notes")
+        }
+
+    except json.JSONDecodeError as je:
+        logger.error(f"  Help Extractor: Failed to parse JSON response: {je}. Raw response: {raw_llm_response}", exc_info=True)
+        default_error_response["notes"] = f"Help Extractor Error: Could not parse JSON from LLM. {je}"
+        return default_error_response
+    except Exception as e:
+        logger.error(f"  Help Extractor: Exception caught: {type(e).__name__} - {str(e)}", exc_info=True)
+        default_error_response["notes"] = f"Help Extractor Error: {type(e).__name__} - {str(e)}"
+        return default_error_response
+
+print("DEBUG: artisans.py - initialize_help_example_extractor_agent IS DEFINED") # Debug print
