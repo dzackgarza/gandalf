@@ -129,6 +129,115 @@ def test_initialize_planner_agent_v1_hello_world():
     assert plan_output.tasks == ["Create a Python file that prints 'Hello, World!'"]
 
 
+# Tests for V1 Basic Coder Agent
+
+# Path, PlanOutput, CodeOutput are imported at the top.
+# We'll use tmp_path fixture for creating temporary files/dirs.
+
+
+def test_initialize_coder_agent_v1_hello_world(tmp_path):
+    """Tests V1 Coder Agent for 'Hello, World!' task."""
+    commission_id = "test_coder_hw_001"
+    plan = PlanOutput(tasks=["Create a Python file that prints 'Hello, World!'"])
+
+    # Use a subdirectory within tmp_path for generated code to mimic real structure
+    generated_code_dir = tmp_path / "generated_code"
+
+    code_output = artisans.initialize_coder_agent_v1(
+        plan, commission_id, output_dir=generated_code_dir
+    )
+
+    expected_file_path = generated_code_dir / commission_id / "main.py"
+
+    assert isinstance(code_output, CodeOutput)
+    assert code_output.code_path == expected_file_path
+    assert "Successfully created main.py" in code_output.message
+    assert expected_file_path.exists()
+    assert expected_file_path.is_file()
+
+    with open(expected_file_path, "r") as f:
+        content = f.read()
+    assert content == 'print("Hello, World!")\n'
+
+
+def test_initialize_coder_agent_v1_generic_task(tmp_path):
+    """Tests V1 Coder Agent for a generic task."""
+    commission_id = "test_coder_generic_002"
+    task_description = "Implement user login functionality."
+    plan = PlanOutput(tasks=[task_description])
+
+    generated_code_dir = tmp_path / "generated_code"
+
+    code_output = artisans.initialize_coder_agent_v1(
+        plan, commission_id, output_dir=generated_code_dir
+    )
+
+    expected_file_path = generated_code_dir / commission_id / "task_output.txt"
+
+    assert isinstance(code_output, CodeOutput)
+    assert code_output.code_path == expected_file_path
+    assert "Successfully created task_output.txt" in code_output.message
+    assert expected_file_path.exists()
+    assert expected_file_path.is_file()
+
+    with open(expected_file_path, "r") as f:
+        content = f.read()
+    assert content == f"Task from plan:\n{task_description}\n"
+
+
+def test_initialize_coder_agent_v1_no_tasks(tmp_path):
+    """Tests V1 Coder Agent when the plan has no tasks."""
+    commission_id = "test_coder_notasks_003"
+    plan = PlanOutput(tasks=[])  # Empty task list
+
+    generated_code_dir = tmp_path / "generated_code"
+    expected_output_path = generated_code_dir / commission_id
+
+    code_output = artisans.initialize_coder_agent_v1(
+        plan, commission_id, output_dir=generated_code_dir
+    )
+
+    assert isinstance(code_output, CodeOutput)
+    assert code_output.code_path == expected_output_path  # Should be the directory
+    assert "Coder Error: No tasks found in plan." in code_output.message
+    # Ensure the directory was created even if no file was made
+    assert expected_output_path.exists()
+    assert expected_output_path.is_dir()
+    # Check that no unexpected files were created
+    assert not list(expected_output_path.glob("*"))
+
+
+def test_initialize_coder_agent_v1_output_directory_creation(tmp_path):
+    """Tests that the coder agent creates the commission-specific output directory."""
+    commission_id = "test_coder_dir_creation_004"
+    plan = PlanOutput(tasks=["Create a simple text file."])
+
+    # Use a non-existent base directory to ensure it's created
+    base_output_dir = tmp_path / "custom_generated_code_base"
+    expected_commission_dir = base_output_dir / commission_id
+
+    assert not base_output_dir.exists()  # Pre-condition: base directory does not exist
+
+    artisans.initialize_coder_agent_v1(plan, commission_id, output_dir=base_output_dir)
+
+    assert expected_commission_dir.exists()
+    assert expected_commission_dir.is_dir()
+    # Check if the task_output.txt was created inside
+    expected_file_path = expected_commission_dir / "task_output.txt"
+    assert expected_file_path.exists()
+    assert expected_file_path.is_file()
+
+
+# It might be challenging to directly test IOErrors for file writing
+# without more complex mocking (e.g., mocking `open` or file system permissions).
+# For V1, the current tests cover the main logic paths.
+# If more robustness is needed around file system errors, advanced mocking
+# or OS-level permission manipulation (which is complex and platform-dependent)
+# would be required for tests. The current implementation logs IOErrors,
+# and the function returns a CodeOutput with an error message, which is testable
+# if such an error could be reliably triggered.
+
+
 # Tests for V1 Basic Auditor Agent
 
 
