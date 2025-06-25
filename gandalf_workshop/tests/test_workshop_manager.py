@@ -1,6 +1,9 @@
 import pytest
 import shutil
 from pathlib import Path
+import pytest
+import shutil
+from pathlib import Path
 from gandalf_workshop.workshop_manager import WorkshopManager
 
 # from gandalf_workshop.specs.data_models import PMReviewDecision # No longer directly used here
@@ -193,6 +196,39 @@ def test_legacy_blueprint_revision_method_exists_and_runs():
     initial blueprinting but might be used for technical revisions later.
     """
     manager = WorkshopManager()
+    commission_id = "legacy_rev_test_004"
+    blueprint_dir = Path("gandalf_workshop/blueprints") / commission_id
+    blueprint_dir.mkdir(parents=True, exist_ok=True)
+    original_bp_path = blueprint_dir / "blueprint.yaml"
+    with open(original_bp_path, "w") as f:
+        f.write(
+            "commission_id: legacy_rev_test_004\n"
+            "project_summary: Test for legacy revision."
+        )
+
+    failure_history = {"error": "Technical flaw found by QA", "details": "..."}
+
+    try:
+        revised_path = manager.request_blueprint_revision(
+            commission_id=commission_id,
+            original_blueprint_path=original_bp_path,
+            failure_history=failure_history,
+        )
+        assert revised_path.exists()
+        assert revised_path.name != original_bp_path.name
+    finally:
+        if blueprint_dir.exists():
+            shutil.rmtree(blueprint_dir)
+
+
+# To run these tests, navigate to the repository root and use:
+# python -m pytest
+# or if pytest is not found, ensure it's installed (pip install pytest)
+# and your PYTHONPATH is set up if needed, e.g.:
+# PYTHONPATH=. python -m pytest
+# For coverage:
+# PYTHONPATH=. python -m pytest --cov=gandalf_workshop --cov-report=html
+# (then open htmlcov/index.html)
     commission_id = "legacy_rev_test_004"
     blueprint_dir = Path("gandalf_workshop/blueprints") / commission_id
     blueprint_dir.mkdir(parents=True, exist_ok=True)

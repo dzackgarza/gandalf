@@ -6,6 +6,11 @@ This module provides functions to initialize and configure "Artisan Crews"
 Workshop Manager briefs craftsmen (Planner, Coder, Inspector crews) before
 they start a commission. Each function here would typically set up agents
 (e.g., using CrewAI, AutoGen, LangGraph) with charters, tools, and context.
+This module provides functions to initialize and configure "Artisan Crews"
+(specialized AI agent teams). It's like a workshop assembly hall where the
+Workshop Manager briefs craftsmen (Planner, Coder, Inspector crews) before
+they start a commission. Each function here would typically set up agents
+(e.g., using CrewAI, AutoGen, LangGraph) with charters, tools, and context.
 """
 
 # from .prompts import (PLANNER_CHARTER_PROMPT, CODER_CHARTER_PROMPT,
@@ -13,6 +18,9 @@ they start a commission. Each function here would typically set up agents
 # Import necessary AI framework components here, e.g.:
 # from crewai import Agent, Task, Crew, Process
 
+# Metaphor: These functions are like the Workshop Manager's assistants who
+# know how to quickly assemble Planners, Coders, or Inspectors, providing
+# them with their official charters (prompts) and tools.
 # Metaphor: These functions are like the Workshop Manager's assistants who
 # know how to quickly assemble Planners, Coders, or Inspectors, providing
 # them with their official charters (prompts) and tools.

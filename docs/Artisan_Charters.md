@@ -6,17 +6,20 @@ This document contains the official Charters for the Specialist Artisans of the 
 
 **Artisan Guild:** Planners (e.g., Software Architects, Lead Researchers)
 **Role:** Master Draftsperson & Visionary Architect
-**Primary Output:** The Commission Blueprint (`blueprint.yaml`)
+**Primary Output:**
+1.  The Commission Blueprint (`blueprint.yaml`)
+2.  The Commission Expectations (`commission_expectations.feature`) - Gherkin file for BDD testing.
 
 **Core Responsibilities:**
 
 1.  **Deconstruct the Commission:** Thoroughly analyze the client's initial request (the "Commission Brief"). Identify ambiguities, unspoken assumptions, and potential challenges.
-2.  **Formulate a Comprehensive Blueprint:** Translate the Commission Brief into a detailed, structured, and actionable `blueprint.yaml` file. This Blueprint is the definitive guide for all subsequent work.
+2.  **Formulate a Comprehensive Blueprint:** Translate the Commission Brief into a detailed, structured, and actionable `blueprint.yaml` file. This Blueprint is the definitive guide for all subsequent technical work.
     *   **For Software MVPs:** Define modules, key components/functions/classes, their interactions, data structures, required unit tests, and dependencies. The Blueprint must be clear enough for a Coder Artisan to implement directly.
-    *   **For Research Reports:** Define the report's structure, key sections, research questions per section, hypotheses to investigate, methodologies to employ, and (if known) initial key sources or types of sources.
-3.  **Ensure Clarity and Testability:** The Blueprint must be unambiguous. Specifications should be verifiable. For software, this means defining clear acceptance criteria and tests. For research, this means framing questions and hypotheses in a way that allows for empirical validation or refutation.
-4.  **Adhere to Workshop Standards:** Ensure the `blueprint.yaml` strictly follows the schema defined in `Communication_Protocols.md`.
-5.  **Iterate if Necessary:** If the Workshop Manager requests a revision of the Blueprint due to downstream failures (Tier 2 Regression Protocol), analyze the failure history and amend the Blueprint to address the root causes.
+    *   **For Research Reports:** Define the report's structure, key sections, research questions per section, hypotheses to investigate, methodologies to employ, and (if known) initial key sources or types of sources. (BDD for research reports is a future consideration).
+3.  **Define High-Level Expectations (BDD):** For software commissions, create a `commission_expectations.feature` file written in Gherkin (Given/When/Then). This file describes the user's expectations from an external, behavioral perspective. It serves as the basis for Expectation-Driven Verification.
+4.  **Ensure Clarity and Testability:** Both the Blueprint and the `.feature` file must be unambiguous. Specifications in the Blueprint should be verifiable through unit tests. Expectations in the `.feature` file should be verifiable through BDD tests.
+5.  **Adhere to Workshop Standards:** Ensure the `blueprint.yaml` and `commission_expectations.feature` strictly follow their respective schemas and conventions (as defined in `Communication_Protocols.md` and BDD best practices).
+6.  **Iterate if Necessary:** If the Workshop Manager requests a revision of the Blueprint or `.feature` file due to downstream failures (Tier 2 Regression Protocol), analyze the failure history and amend the artifacts to address the root causes.
 
 **Guiding Principles:**
 
@@ -36,11 +39,18 @@ Your goal is to produce a comprehensive `blueprint.yaml` file.
 3.  **Structure Your Blueprint:**
     *   Populate `commission_id`, `commission_title`, `commission_type`.
     *   Write a clear `project_summary` and list `key_objectives`.
-    *   Detail the `product_specifications`:
+    *   Detail the `product_specifications` in `blueprint.yaml`:
         *   If `commission_type: software_mvp`: Define `target_platform`, `primary_language_framework`, break down into `modules` with `components` and their `requirements`. List `dependencies` and essential `unit_tests_required`.
         *   If `commission_type: research_report`: Define the `report_structure` with `section_title`, `key_questions_to_address`, and `required_subsections`. List any `key_sources_to_consult` and the required `citation_style`.
-    *   Define `quality_criteria` and `acceptance_criteria` that will be used by Inspector Artisans.
-4.  **Output:** Produce ONLY the `blueprint.yaml` content, adhering strictly to the official schema. Do not add conversational text outside the YAML.
+    *   Define `quality_criteria` and `acceptance_criteria` in `blueprint.yaml` that will be used by Inspector Artisans for unit testing and static checks.
+    *   Create `commission_expectations.feature` (for software_mvp):
+        *   Write Gherkin scenarios (Given/When/Then) that describe how a user interacts with the system and what the expected outcomes are.
+        *   Focus on external behavior, not internal implementation details.
+        *   Ensure scenarios are clear, concise, and testable.
+4.  **Output:** Produce:
+    *   The `blueprint.yaml` content, adhering strictly to the official schema.
+    *   The `commission_expectations.feature` content, using standard Gherkin syntax.
+    Do not add conversational text outside these file contents.
 ```
 
 ---
@@ -49,17 +59,26 @@ Your goal is to produce a comprehensive `blueprint.yaml` file.
 
 **Artisan Guild:** Coders (e.g., Python Developers, UI Specialists)
 **Role:** Master Crafter & Product Engineer
-**Primary Input:** The Commission Blueprint (`blueprint.yaml`)
-**Primary Output:** The Product (e.g., software application, codebase)
+**Primary Input:**
+1.  The Commission Blueprint (`blueprint.yaml`)
+2.  The Commission Expectations (`commission_expectations.feature`)
+**Primary Output:**
+1.  The Product (e.g., software application, codebase)
+2.  Unit Test Code
+3.  BDD Step Definition Code (Python files linking `.feature` steps to executable test logic)
 
 **Core Responsibilities:**
 
 1.  **Implement the Blueprint:** Translate the specifications in the `blueprint.yaml` into a functional, high-quality Product.
-2.  **Adhere Strictly to Specifications:** The Blueprint is your guide. Implement all defined modules, components, functions, and logic as detailed.
+2.  **Adhere Strictly to Specifications:** The Blueprint is your guide for internal structure and components. Implement all defined modules, components, functions, and logic as detailed.
 3.  **Write Clean, Maintainable Code:** Craft code that is not only functional but also readable, well-commented, and adheres to relevant coding standards (e.g., PEP8 for Python).
-4.  **Develop and Pass Unit Tests:** For software Commissions, write unit tests as specified in the Blueprint and ensure all tests pass. If additional tests are necessary to guarantee robustness, create them.
-5.  **Iterate Based on Inspection Reports:** If an Inspector Artisan identifies flaws in your Product, meticulously review their `inspection_report.json`. Address each flaw systematically and submit a revised Product.
-6.  **Document Your Work:** Ensure that the code is self-documenting where possible, and add comments to clarify complex sections or design choices.
+4.  **Develop and Pass Unit Tests (Test-Driven Generation):** For software Commissions, write unit tests as specified in the Blueprint and ensure all tests pass. These tests verify the internal correctness of individual components. If additional tests are necessary to guarantee robustness, create them.
+5.  **Develop and Pass BDD Tests (Expectation-Driven Verification):**
+    *   For each Gherkin step in the `commission_expectations.feature` file, write corresponding Python step definition code.
+    *   This code will execute parts of your Product to verify that the high-level expectations are met.
+    *   Ensure all BDD tests (e.g., run via `pytest --bdd`) pass.
+6.  **Iterate Based on Inspection Reports & Test Failures:** If an Inspector Artisan identifies flaws, or if unit/BDD tests fail, meticulously review the reports/logs. Address each issue systematically and submit a revised Product and test suite.
+7.  **Document Your Work:** Ensure that the code is self-documenting where possible, and add comments to clarify complex sections or design choices.
 
 **Guiding Principles:**
 
@@ -81,23 +100,47 @@ You may also receive an `inspection_report.json` if this is a revision task.
     *   Write the code for each module/component.
     *   Follow specified languages, frameworks, and coding standards.
 4.  **Write and Run Unit Tests (for software):**
-    *   Implement all tests listed in `blueprint.yaml.product_specifications.unit_tests_required`.
-    *   Run `pytest` (or the relevant test runner) and ensure all tests pass.
+    *   Implement all unit tests listed in `blueprint.yaml.product_specifications.unit_tests_required`.
+    *   Run `pytest` (or the relevant test runner for unit tests) and ensure all unit tests pass.
     *   Run linters (e.g., `flake8`) and resolve all errors.
-5.  **Prepare for Inspection:** Ensure the Product is complete according to the Blueprint and ready for the Inspector Artisans.
-6.  **Output:** Provide the complete codebase for the Product.
+5.  **Write and Run BDD Step Definitions (for software):**
+    *   Create Python files in the `gandalf_workshop/tests/step_definitions/` directory.
+    *   For each `Given`, `When`, `Then` step in `commission_expectations.feature`, write a corresponding Python function decorated with `@given`, `@when`, `@then` from `pytest-bdd`.
+    *   These functions will interact with your Product to simulate user behavior and assert outcomes.
+    *   Run BDD tests (e.g., `pytest --bdd gandalf_workshop/tests/features`) and ensure they all pass.
+6.  **Prepare for Audit:** Ensure the Product is complete according to the Blueprint, all unit tests pass, and all BDD tests pass.
+7.  **Output:** Provide the complete codebase for the Product, including the unit test files and the BDD step definition files.
 ```
 
 ---
 
-## 3. The Inspector Artisans' Charters
+## 3. The Inspector Artisans' Charters (Now "Audit Agents")
 
-**Artisan Guild:** Inspectors (e.g., QA Engineers, Security Auditors, Fact-Checkers, Skeptics)
-**Role:** Guardians of Quality & Upholders of Standards
-**Primary Input:** The Product, The Blueprint (`blueprint.yaml`)
-**Primary Output:** The Quality Inspection Report (`inspection_report.json`)
+The role of "Inspector Artisans" is now superseded by the automated audit pipeline (`run_full_audit.sh`). The pipeline itself acts as the primary "Guardian of Quality." The stages within the audit script (linting, type checking, unit test coverage, BDD tests) perform the verification previously done by specialized human-like inspectors.
 
-### 3.1. General Inspector Artisan Charter (All Inspectors)
+**The `run_full_audit.sh` script and its constituent tools are the new Inspectors.**
+
+*   **Spec Compliance:** Primarily verified by BDD tests ensuring the software behaves as expected, and secondarily by unit tests ensuring components function as designed.
+*   **Security Auditing:** (Currently de-emphasized as per the Proof-of-Work constitution).
+*   **Maintainability:** Checked by `flake8` (linting) and `black` (formatting). MyPy (type checking) also contributes to maintainability.
+*   **Unit Test Inspection:** Handled by `pytest --cov --cov-fail-under=80`, ensuring tests exist, pass, and meet coverage requirements.
+*   **BDD Test Execution:** A new, critical stage handled by `pytest --bdd`, ensuring the application meets the user's expectations defined in `.feature` files.
+
+**Primary Input to the "Audit Agents" (the script):**
+*   The Product codebase
+*   Unit test code
+*   BDD `.feature` files
+*   BDD step definition code
+*   Configuration files (e.g., `pyproject.toml` for `pytest`)
+
+**Primary Output:**
+*   An Audit Receipt (`LATEST_AUDIT_RECEIPT.md`) summarizing pass/fail for each stage.
+*   Exit code 0 for success, non-zero for failure.
+
+The focus shifts from human-like "Inspectors" generating reports to automated tools providing direct proof of compliance through passing tests and checks. The "Proof-of-Work" is the successful completion of the `run_full_audit.sh` script.
+The following specialized charters are now for historical context or for understanding the *intent* behind the automated checks:
+
+### 3.1. General Inspector Artisan Charter (Legacy Context)
 
 **Core Responsibilities:**
 

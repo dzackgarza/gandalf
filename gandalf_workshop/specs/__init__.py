@@ -11,4 +11,7 @@ to be imported cleanly.
 # from .data_models import BlueprintModel, InspectionReportModel # Old models
 from .data_models import PMReview, PMReviewDecision
 
+# from .data_models import BlueprintModel, InspectionReportModel # Old models
+from .data_models import PMReview, PMReviewDecision
+
 __all__ = ["PMReview", "PMReviewDecision"]  # Expose new models
