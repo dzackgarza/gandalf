@@ -2,6 +2,7 @@ from gandalf_workshop.artisan_guildhall import artisans
 from gandalf_workshop.specs.data_models import PlanOutput  # Moved here
 
 
+
 def test_initialize_planning_crew():
     """Tests that the placeholder planning crew function can be called."""
     # The function currently just prints.
