@@ -176,8 +176,12 @@ def test_successful_v1_workflow(
         f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
         in captured.out
     )
+    # Check for truncated plan log
+    expected_plan_log = str(MOCK_PLAN_TASKS)
+    if len(expected_plan_log) > 50:
+        expected_plan_log = expected_plan_log[:47] + "..."
     assert (
-        f"Planner Agent returned plan: {str(MOCK_PLAN_TASKS)}" in captured.out
+        f"Planner Agent returned plan: {expected_plan_log}" in captured.out
     )  # WM logs the plan
     assert (
         f"Coder Agent generated code at: {mock_code_path}" in captured.out
@@ -247,7 +251,11 @@ def test_audit_failure_v1_workflow(
         f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
         in captured.out
     )
-    assert f"Planner Agent returned plan: {str(MOCK_PLAN_TASKS)}" in captured.out
+    # Check for truncated plan log
+    expected_plan_log = str(MOCK_PLAN_TASKS)
+    if len(expected_plan_log) > 50:
+        expected_plan_log = expected_plan_log[:47] + "..."
+    assert f"Planner Agent returned plan: {expected_plan_log}" in captured.out
     assert f"Coder Agent generated code at: {mock_code_path}" in captured.out
     assert (
         f"Auditor Agent reported: {AuditStatus.FAILURE} - {mock_audit_failure_message}"
