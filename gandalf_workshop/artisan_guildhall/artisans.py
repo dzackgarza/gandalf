@@ -283,3 +283,62 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
 # The __main__ block below was moved to a test in:
 # gandalf_workshop/tests/test_artisans.py
 # to allow pytest to include its logic in coverage reports.
+
+
+def initialize_coder_agent_v1(task_description: str, commission_id: str = "N/A") -> str:
+    """
+    Initializes and runs a basic V1 Coder Agent.
+    For V1, this is a placeholder that returns a mock code string
+    based on the task description. It does not involve a full LLM crew.
+    It will use a simplified version of the CODER_CHARTER_PROMPT.
+
+    Args:
+        task_description: A clear description of the coding task.
+        commission_id: A unique ID for this commission (optional).
+
+    Returns:
+        A string containing the generated Python code.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Artisan Assembly: V1 Basic Coder Agent activated for commission "
+        f"'{commission_id}'."
+    )
+    logger.info(f"  Task Description: {task_description[:100]}...")
+
+    # Placeholder for actual LLM call using a simplified CODER_CHARTER_PROMPT
+    # For now, return mock code based on keywords in the task description.
+    # This simulates what an LLM might do with a more direct prompt.
+
+    # CODER_CHARTER_PROMPT is imported at the top, but for a direct LLM call,
+    # we might use a more focused prompt or parts of it.
+    # from .prompts import CODER_CHARTER_PROMPT (already imported if uncommented at top)
+
+    # Mock LLM interaction:
+    task_lower = task_description.lower()
+    if "hello world" in task_lower or "hello, world" in task_lower:
+        generated_code = "print('Hello, World!')"
+        logger.info("  V1 Coder: Generated 'Hello, World!' code.")
+    elif "function" in task_lower and "add" in task_lower:
+        generated_code = (
+            "def add(a, b):\n" '    """Adds two numbers."""\n' "    return a + b"
+        )
+        logger.info("  V1 Coder: Generated 'add' function code.")
+    elif "class" in task_description.lower() and "dog" in task_description.lower():
+        generated_code = (
+            "class Dog:\n"
+            "    def __init__(self, name):\n"
+            "        self.name = name\n\n"
+            "    def bark(self):\n"
+            '        return f"{self.name} says woof!"'
+        )
+        logger.info("  V1 Coder: Generated 'Dog' class code.")
+    else:
+        generated_code = (
+            f"# Code for: {task_description}\n" "pass  # Placeholder implementation"
+        )
+        logger.info(
+            f"  V1 Coder: Generated placeholder code for: {task_description[:50]}..."
+        )
+
+    return generated_code
