@@ -70,7 +70,24 @@ def main():
                 f"successfully. Product available at: {product_path}"
             )
         )
-
+    except ValueError as ve:
+        if "GEMINI_API_KEY environment variable not set" in str(ve):
+            print(
+                "Error: The GEMINI_API_KEY was not found. "
+                "Please ensure it is set in your .env file or environment."
+            )
+            # Optionally, log to a logger if configured
+            # logger.error("Stopping execution: GEMINI_API_KEY not found.")
+            return # Exit if API key is missing
+        else:
+            print( # Print other ValueErrors before full traceback
+                (
+                    f"Gandalf Workshop: A ValueError occurred while processing "
+                    f"commission '{commission_id}': {ve}"
+                )
+            )
+            import traceback
+            traceback.print_exc()
     except Exception as e:
         print(
             (

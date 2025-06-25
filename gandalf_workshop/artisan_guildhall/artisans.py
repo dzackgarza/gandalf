@@ -18,6 +18,7 @@ they start a commission. Each function here would typically set up agents
 # Import necessary AI framework components here, e.g.:
 # from crewai import Agent, Task, Crew, Process
 
+import os
 import yaml
 import logging
 from pathlib import Path
@@ -27,6 +28,8 @@ from datetime import datetime, timezone
 #                       GENERAL_INSPECTOR_CHARTER_PROMPT)
 # Import necessary AI framework components here, e.g.:
 # from crewai import Agent, Task, Crew, Process
+# import openai # Commented out: No longer using OpenAI directly for live agents
+import google.generativeai as genai # Added for Gemini
 from gandalf_workshop.specs.data_models import (
     PlanOutput,
     PMReview,
@@ -45,6 +48,32 @@ import tempfile # For safe auditing
 # Metaphor: These functions are like the Workshop Manager's assistants who
 # know how to quickly assemble Planners, Coders, or Inspectors, providing
 # them with their official charters (prompts) and tools.
+
+
+def _get_gemini_api_key() -> str:
+    """
+    Retrieves the Gemini API key from the environment variable GEMINI_API_KEY.
+
+    Raises:
+        ValueError: If the GEMINI_API_KEY environment variable is not set.
+
+    Returns:
+        The Gemini API key.
+    """
+    # api_key = os.getenv("GEMINI_API_KEY")
+    # if not api_key:
+    #     raise ValueError(
+    #         "GEMINI_API_KEY environment variable not set. "
+    #         "Please set it before running the live agents."
+    #     )
+    # return api_key
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable not set. "
+            "Please set it before running the live agents."
+        )
+    return api_key
 
 
 def initialize_planning_crew():
@@ -193,6 +222,159 @@ def initialize_planner_agent_v1(user_prompt: str, commission_id: str) -> PlanOut
         print(f"  V1 Planner: Generated generic plan for: {user_prompt[:50]}...")
 
     return plan
+
+
+def initialize_live_planner_agent(user_prompt: str, commission_id: str) -> PlanOutput:
+    """
+    Initializes and runs a live LLM-based Planner Agent using the Gemini API.
+
+    Args:
+        user_prompt: The initial request from the client.
+        commission_id: A unique ID for this commission.
+
+    Returns:
+        A PlanOutput object.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Artisan Assembly: Live Planner Agent activated for commission '{commission_id}'."
+    )
+    logger.info(f"  User Prompt: {user_prompt[:100]}...")
+
+    try:
+        api_key = _get_gemini_api_key()
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Updated model name
+
+        from .prompts import PLANNER_CHARTER_PROMPT
+
+        # For Gemini, the prompt needs to be structured carefully.
+        # We'll combine the charter prompt and user prompt.
+        # System-level instructions are often part of the initial user message turn for some models.
+        # Or passed via specific generation_config or system_instruction parameters if available.
+        # For gemini-pro, we pass it as part of the history or as a single block.
+        # Let's try a combined prompt approach.
+
+        full_prompt = f"{PLANNER_CHARTER_PROMPT}\n\nUser Request:\n{user_prompt}"
+
+        # Alternative: Using system_instruction if the model/SDK version supports it well.
+        # For now, combining into one prompt is safer.
+        # system_instruction = PLANNER_CHARTER_PROMPT
+        # response = model.generate_content(user_prompt, system_instruction=system_instruction)
+
+        response = model.generate_content(full_prompt)
+
+        raw_plan = response.text # Gemini API typically returns response in .text
+        logger.info(f"  Live Planner: Raw LLM response: {raw_plan[:200]}...")
+
+        # Attempt to parse as YAML or JSON, otherwise treat as a single task
+        # For simplicity in this iteration, we'll treat the entire response as a task list.
+        # A more robust solution would involve more sophisticated parsing.
+        if raw_plan:
+            # Assuming the plan is a list of tasks, one per line, or a block of text.
+            # We'll split by newline and filter out empty lines.
+            tasks = [task.strip() for task in raw_plan.split('\n') if task.strip()]
+            if not tasks: # If splitting by newline results in empty, use the whole raw_plan
+                tasks = [raw_plan.strip()]
+            plan = PlanOutput(tasks=tasks, details={"raw_response": raw_plan})
+            logger.info(f"  Live Planner: Parsed tasks: {tasks}")
+        else:
+            logger.warning("  Live Planner: LLM returned an empty plan.")
+            plan = PlanOutput(tasks=["Error: LLM returned empty plan."], details={"raw_response": raw_plan})
+
+    except Exception as e: # General exception for Gemini API errors or other issues
+        logger.error(f"  Live Planner: Exception caught: {type(e).__name__} - {str(e)}", exc_info=True)
+        # Explicitly define plan within the except block using str(e)
+        plan = PlanOutput(tasks=[f"Error during planning: {type(e).__name__} - {str(e)}"], details=None)
+        return plan # Return immediately from except block
+
+    # This line should ideally not be reached if an exception occurs and is handled above.
+    # If plan was not defined in try (e.g. an early error before plan assignment),
+    # and exception was NOT caught, then plan would be unbound here.
+    # However, the UnboundLocalError for 'e' was the primary concern from the traceback.
+    return plan # Assuming plan was successfully defined in the try block
+
+
+def initialize_live_coder_agent(
+    plan_input: PlanOutput,
+    commission_id: str,
+    output_target_dir: Path,
+) -> CodeOutput:
+    """
+    Initializes and runs a live LLM-based Coder Agent using the Gemini API.
+
+    Args:
+        plan_input: A PlanOutput object containing the tasks.
+        commission_id: A unique ID for this commission (for context/logging).
+        output_target_dir: The specific directory where the generated code file
+                           should be saved.
+
+    Returns:
+        A CodeOutput object.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Artisan Assembly: Live Coder Agent activated for commission '{commission_id}'."
+    )
+    logger.info(f"  Plan tasks: {plan_input.tasks}")
+    logger.info(f"  Output target directory: {output_target_dir}")
+
+    output_target_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        api_key = _get_gemini_api_key()
+        # genai.configure(api_key=api_key) # Assuming configure is called once, e.g. in planner or at module start
+        # If artisans can be called independently, configure here too or ensure it's idempotent.
+        # For simplicity, let's assume planner (or an earlier call) has configured genai.
+        # If not, uncomment:
+        genai.configure(api_key=api_key) # Ensure genai is configured in each agent
+        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Updated model name
+
+        from .prompts import CODER_CHARTER_PROMPT
+
+        formatted_plan = "\n".join(
+            f"- {task}" for task in plan_input.tasks
+        )
+        # Combine charter prompt with the plan for Gemini
+        full_prompt = f"{CODER_CHARTER_PROMPT}\n\nUser Request (Plan):\n{formatted_plan}\n\nPlease provide only the Python code as a direct response."
+
+        response = model.generate_content(full_prompt)
+
+        generated_code = response.text # Gemini API typically returns response in .text
+        logger.info(f"  Live Coder: Raw LLM response: {generated_code[:200]}...")
+
+        if not generated_code:
+            logger.warning("  Live Coder: LLM returned empty code.")
+            return CodeOutput(
+                code_path=output_target_dir, # Return dir path on error
+                message="Coder Error: LLM returned empty code."
+            )
+
+        # Clean up common markdown code block fences if present
+        if generated_code.strip().startswith("```python"):
+            generated_code = generated_code.split("```python\n", 1)[1]
+            if generated_code.strip().endswith("```"):
+                 generated_code = generated_code.rsplit("\n```", 1)[0]
+        elif generated_code.strip().startswith("```"):
+            generated_code = generated_code.split("```\n", 1)[1]
+            if generated_code.strip().endswith("```"):
+                generated_code = generated_code.rsplit("\n```", 1)[0]
+
+
+        file_name = "generated_code.py"
+        file_path = output_target_dir / file_name
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(generated_code)
+
+        logger.info(f"  Live Coder: Successfully wrote code to {file_path}")
+        return CodeOutput(code_path=file_path, message=f"Successfully generated code to {file_path}")
+
+    except Exception as e: # General exception for Gemini API errors or other issues
+        # Specific Gemini error types can be caught here if known, e.g., google.api_core.exceptions.
+        # This also catches ValueError for API key issues and IOError for file issues.
+        logger.error(f"  Live Coder: Gemini API error or other exception: {e}", exc_info=True)
+        return CodeOutput(code_path=output_target_dir, message=f"Coder Error: Gemini API or other error - {e}")
 
 
 def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="1.0"):
