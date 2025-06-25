@@ -1,15 +1,16 @@
 import pytest
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+# from unittest.mock import patch, MagicMock # Not needed for true E2E if not mocking planner
 
 from gandalf_workshop.workshop_manager import WorkshopManager
 from gandalf_workshop.specs.data_models import (
-    PlanOutput,
-    CodeOutput,
-    AuditOutput,
+    # PlanOutput, # Not directly used in test if not mocking planner
+    # CodeOutput, # Not directly used in test as it's an internal detail
+    # AuditOutput, # Not directly used in test as it's an internal detail
     AuditStatus,
-    # AgentOutputStatus, # Not currently used, consider removing if not planned for V1
 )
 
 # Standard base directory for commission work as used by WorkshopManager
@@ -19,14 +20,12 @@ COMMISSION_WORK_BASE_DIR = Path("gandalf_workshop/commission_work")
 @pytest.fixture(scope="function")
 def manager_v1():
     """Provides a WorkshopManager instance for V1 E2E tests."""
-    # WorkshopManager __init__ is simple and takes no args currently
     return WorkshopManager()
 
 
 @pytest.fixture
 def unique_commission_id(request):
     """Creates a unique commission ID based on the test function name."""
-    # Using a prefix to easily identify test-generated commission directories
     return f"e2e_v1_{request.node.name}"
 
 
@@ -37,231 +36,202 @@ def auto_cleanup_commission_dir(unique_commission_id):
     using its unique_commission_id. This runs after each test that uses it.
     """
     test_commission_dir = COMMISSION_WORK_BASE_DIR / unique_commission_id
-
-    # Clean before test, if it exists from a previous failed run
     if test_commission_dir.exists():
         shutil.rmtree(test_commission_dir)
-
-    yield  # Test runs here
-
-    # Clean after test
+    yield
     if test_commission_dir.exists():
         shutil.rmtree(test_commission_dir)
 
 
-# Dummy test to ensure fixtures are working as expected.
-# It uses auto_cleanup_commission_dir to ensure its generated directory is cleaned.
-def test_dummy_e2e_v1_setup_works(
-    manager_v1, unique_commission_id, auto_cleanup_commission_dir, capsys
-):
-    """
-    A dummy test to ensure the fixture setup for manager, commission ID,
-    and cleanup works.
-    It will create a dummy directory to check the cleanup.
-    """
-    assert manager_v1 is not None
-    assert unique_commission_id.startswith("e2e_v1_test_dummy_e2e_v1_setup_works")
-
-    # Simulate WorkshopManager creating this directory during a commission run
-    dummy_commission_path = COMMISSION_WORK_BASE_DIR / unique_commission_id
-    dummy_commission_path.mkdir(parents=True, exist_ok=True)
-    assert dummy_commission_path.exists()
-
-    # The auto_cleanup_commission_dir fixture will remove this after the test.
-    print(f"Dummy test ran with commission ID: {unique_commission_id}")
-    print(f"Created dummy directory: {dummy_commission_path}")
-
-
-USER_PROMPT = "Create a simple Python script that prints numbers 1 to 5."
-MOCK_PLAN_TASKS = ["Write a for loop to print numbers 1 to 5 in Python."]
-
-
-@patch("gandalf_workshop.workshop_manager.initialize_planner_agent_v1")
-@patch(
-    "gandalf_workshop.workshop_manager.CodeOutput"
-)  # Mocking direct instantiation for Coder
-@patch(
-    "gandalf_workshop.workshop_manager.AuditOutput"
-)  # Mocking direct instantiation for Auditor
-def test_successful_v1_workflow(
-    MockAuditOutput,
-    MockCodeOutput,
-    MockInitializePlannerV1,
-    manager_v1,
-    unique_commission_id,
-    auto_cleanup_commission_dir,  # Ensures cleanup
-    capsys,
-):
-    """
-    Tests the V1 commission workflow for a successful scenario,
-    mocking all agent interactions.
-    """
-    # Configure Mocks
-    # 1. Planner
-    mock_plan_instance = PlanOutput(tasks=MOCK_PLAN_TASKS)
-    MockInitializePlannerV1.return_value = mock_plan_instance
-
-    # 2. Coder (mocking CodeOutput which is how WorkshopManager currently gets coder result)
-    # The actual code file will be created by WorkshopManager's current mock Coder logic
-    # based on the plan. We need to ensure our mock plan is compatible or enhance this.
-    # For this test, we'll assume the mock coder in WorkshopManager handles the MOCK_PLAN_TASKS
-    # and creates a predictable file.
-    # Let's make the mock plan generic enough that the WM's mock coder handles it.
-    # The WM's mock coder creates 'output.txt' for non-hello-world plans.
-    expected_code_filename = "output.txt"
-    mock_code_path = (
-        COMMISSION_WORK_BASE_DIR / unique_commission_id / expected_code_filename
-    )
-
-    # This CodeOutput is what the WM's *internal* mock Coder part would effectively return.
-    # The test is more about the WM calling these parts in sequence.
-    # So, MockCodeOutput is for the *Auditor's* input, not the Coder's direct output to WM.
-    # The WM's internal mock coder creates a file and returns its path.
-    # Then it *instantiates* CodeOutput for the auditor.
-    # This is a bit confusing due to current WM structure. We mock what WM *uses*.
-
-    # The actual CodeOutput instance will be created *inside* WorkshopManager's run_v1_commission.
-    # We are mocking the *class* CodeOutput so when WM calls CodeOutput(...), it gets our mock.
-    mock_code_output_instance = MagicMock(spec=CodeOutput)
-    mock_code_output_instance.code_path = mock_code_path
-    mock_code_output_instance.message = "Mock code generated successfully."
-    MockCodeOutput.return_value = mock_code_output_instance
-
-    # 3. Auditor (mocking AuditOutput)
-    mock_audit_output_instance = MagicMock(spec=AuditOutput)
-    mock_audit_output_instance.status = AuditStatus.SUCCESS
-    mock_audit_output_instance.message = "Mock audit passed."
-    MockAuditOutput.return_value = mock_audit_output_instance
-
-    # Run the commission
-    result_path = manager_v1.run_v1_commission(USER_PROMPT, unique_commission_id)
-
-    # Assertions
-    # 1. Planner was called
-    MockInitializePlannerV1.assert_called_once_with(USER_PROMPT, unique_commission_id)
-
-    # 2. Coder produced output (file exists as per WM's internal mock Coder)
-    assert (
-        result_path == mock_code_path
-    )  # WM returns the code_path from its internal Coder logic
-    assert (
-        mock_code_path.exists()
-    )  # Check the file was actually created by WM's mock Coder
-    # Content check for the WM's current mock coder output for generic plan
-    with open(mock_code_path, "r") as f:
-        content = f.read()
-        assert f"Content for: {USER_PROMPT}" in content
-        assert f"Based on plan: {MOCK_PLAN_TASKS}" in content
-
-    # 3. Auditor was called (implicitly, because MockAuditOutput was used by WM)
-    # We verify that WorkshopManager instantiated CodeOutput with the correct path
-    # (or rather, the path that its internal mock coder determined)
-    # And that AuditOutput was instantiated with the success status.
-    # This is indirect. A direct check would be to mock `initialize_coder_agent_v1` and `initialize_auditor_agent_v1`
-    # if WM used them. Since it directly instantiates CodeOutput/AuditOutput for now (or has mock logic),
-    # we patch those classes.
-
-    # Verify CodeOutput was instantiated by WM as expected (for the auditor's input)
-    # The path used here should be what WM's mock coder actually created.
-    # WM's internal Coder logic:
-    # output_file = commission_work_dir / "output.txt" (if not hello world)
-    # code_output = CodeOutput(code_path=output_file, message=...)
-    # We mocked CodeOutput class, so its call args can be checked if needed, but it's tricky
-    # because the instance is `mock_code_output_instance`.
-    # It's simpler to assert that the final `result_path` is correct and the flow completed.
-
-    # 4. Final result and logs
-    captured = capsys.readouterr()
-    assert (
-        f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
-        in captured.out
-    )
-    assert (
-        f"Planner Agent returned plan: {str(MOCK_PLAN_TASKS)}" in captured.out
-    )  # WM logs the plan
-    assert (
-        f"Coder Agent generated code at: {mock_code_path}" in captured.out
-    )  # WM logs the path from its mock coder
-    assert (
-        f"Auditor Agent reported: {AuditStatus.SUCCESS} - Mock audit passed."
-        in captured.out
-    )
-    assert (
-        f"===== V1 Workflow for Commission: {unique_commission_id} Completed Successfully ====="
-        in captured.out
-    )
-
-
-@patch("gandalf_workshop.workshop_manager.initialize_planner_agent_v1")
-@patch("gandalf_workshop.workshop_manager.CodeOutput")
-@patch("gandalf_workshop.workshop_manager.AuditOutput")
-def test_audit_failure_v1_workflow(
-    MockAuditOutput,
-    MockCodeOutput,
-    MockInitializePlannerV1,
+def test_e2e_hello_world_generation(
     manager_v1,
     unique_commission_id,
     auto_cleanup_commission_dir,
     capsys,
 ):
     """
-    Tests the V1 commission workflow where the auditor reports a failure.
+    Tests the full E2E V1 workflow for a 'hello world' prompt.
+    It uses the actual basic Planner, Coder, and Auditor agents.
     """
-    # Configure Mocks
-    mock_plan_instance = PlanOutput(tasks=MOCK_PLAN_TASKS)
-    MockInitializePlannerV1.return_value = mock_plan_instance
+    user_prompt = "Please create a hello world program in Python."
+    expected_plan_tasks = ["Create a Python file that prints 'Hello, World!'"]
+    expected_code_filename = "main.py"  # Coder agent now creates main.py
+    expected_code_content = 'print("Hello, World!")\n'  # Indentation fixed
+    expected_output_message = "Hello, World!\n"
 
-    expected_code_filename = "output.txt"  # From WM's mock coder
-    mock_code_path = (
-        COMMISSION_WORK_BASE_DIR / unique_commission_id / expected_code_filename
-    )
-
-    mock_code_output_instance = MagicMock(spec=CodeOutput)
-    mock_code_output_instance.code_path = mock_code_path
-    mock_code_output_instance.message = "Mock code generated (for failure test)."
-    MockCodeOutput.return_value = mock_code_output_instance
-
-    mock_audit_failure_message = "Critical security flaw detected by mock!"
-    mock_audit_output_instance = MagicMock(spec=AuditOutput)
-    mock_audit_output_instance.status = AuditStatus.FAILURE
-    mock_audit_output_instance.message = mock_audit_failure_message
-    MockAuditOutput.return_value = mock_audit_output_instance
-
-    # Run the commission and expect an exception
-    with pytest.raises(Exception) as excinfo:
-        manager_v1.run_v1_commission(USER_PROMPT, unique_commission_id)
+    # Run the commission
+    result_path = manager_v1.run_v1_commission(user_prompt, unique_commission_id)
 
     # Assertions
-    MockInitializePlannerV1.assert_called_once_with(USER_PROMPT, unique_commission_id)
-
-    # File should still be created by WM's mock coder before audit
-    assert mock_code_path.exists()
-
-    assert (
-        f"Audit failed for commission '{unique_commission_id}': {mock_audit_failure_message}"
-        in str(excinfo.value)
+    # 1. Coder produced the correct output file
+    expected_file_path = (
+        COMMISSION_WORK_BASE_DIR / unique_commission_id / expected_code_filename
     )
+    assert result_path == expected_file_path
+    assert expected_file_path.exists(), "Generated code file should exist."
+    assert expected_file_path.is_file(), "Generated code path should be a file."
 
+    # 2. Content of the generated file is correct
+    with open(expected_file_path, "r") as f:
+        content = f.read()
+    assert content == expected_code_content, "Generated file content is incorrect."
+
+    # 3. Execute the generated Python script and check its output
+    try:
+        process_result = subprocess.run(
+            [sys.executable, str(expected_file_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5, # Add a timeout
+        )
+        assert (
+            process_result.stdout == expected_output_message
+        ), f"Script output incorrect. Got: '{process_result.stdout}'"
+        assert process_result.stderr == "", "Script stderr should be empty."
+    except subprocess.CalledProcessError as e:
+        pytest.fail(
+            f"Generated script failed to execute. Error: {e}\nStdout: {e.stdout}\nStderr: {e.stderr}"
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail("Generated script execution timed out.")
+
+
+    # 4. Check logs for key messages (Planner, Coder, Auditor success)
     captured = capsys.readouterr()
     assert (
         f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
         in captured.out
     )
-    assert f"Planner Agent returned plan: {str(MOCK_PLAN_TASKS)}" in captured.out
-    assert f"Coder Agent generated code at: {mock_code_path}" in captured.out
+    # Check for planner log (actual planner is used)
+    # Example: "Workshop Manager: Planner Agent returned plan: ['Create a Python file that prints \'Hello, Worl..."
+    # Making this check more robust to minor string representation changes and truncation
+    assert "Planner Agent returned plan:" in captured.out
+    # Check for the beginning of the task description, which should not be truncated.
+    assert "[\"Create a Python file that prints 'Hello, W" in captured.out
+
+    # Check for coder log
+    # Example: "Workshop Manager: Coder Agent completed. Code path: ..., Message: Successfully created main.py..."
+    assert "Coder Agent completed." in captured.out
+    assert f"Code path: {expected_file_path}" in captured.out
+    assert "Successfully created main.py" in captured.out # Check for coder success message
+
+    # Check for auditor log (actual auditor is used)
+    # Example: "Workshop Manager: Auditor Agent reported: AuditStatus.SUCCESS - Syntax OK."
+    assert "Auditor Agent reported:" in captured.out
+    assert f"{AuditStatus.SUCCESS.value}" in captured.out # Check for SUCCESS status
+    assert "Syntax OK." in captured.out # Check for auditor success message
+
     assert (
-        f"Auditor Agent reported: {AuditStatus.FAILURE} - {mock_audit_failure_message}"
+        f"===== V1 Workflow for Commission: {unique_commission_id} Completed Successfully ====="
         in captured.out
     )
+
+
+def test_e2e_audit_failure_syntax_error(
+    manager_v1,
+    unique_commission_id,
+    auto_cleanup_commission_dir,
+    capsys,
+    # We need to mock the Coder to produce bad code for this test
+    # Or, have a specific plan that the V1 Coder interprets as "make bad code"
+    # For true E2E, it's better if the Planner can instruct this.
+    # Let's try to make the planner output a task that the coder will intentionally make syntax error for.
+    # This requires modifying the planner and coder, which is beyond this step.
+    # So, for now, we will mock `initialize_coder_agent_v1` to return a CodeOutput
+    # pointing to a file with a syntax error.
+    monkeypatch,
+):
+    """
+    Tests the V1 E2E workflow where the Auditor correctly reports a failure
+    due to a syntax error in the code produced by the Coder.
+    """
+    user_prompt = "Create a python program with a syntax error."
+    # The actual planner will generate a generic plan for this.
+    # We will then intercept the call to the coder to make it produce bad code.
+
+    commission_dir = COMMISSION_WORK_BASE_DIR / unique_commission_id
+    commission_dir.mkdir(parents=True, exist_ok=True) # Ensure dir exists for bad_code_file
+
+    bad_code_filename = "syntax_error.py"
+    bad_code_file_path = commission_dir / bad_code_filename
+    with open(bad_code_file_path, "w") as f:
+        f.write("print 'this is a syntax error in Python 3'\n")
+
+    # Mock the Coder to return the path to this bad file
+    # We need to import CodeOutput for this mock
+    from gandalf_workshop.specs.data_models import CodeOutput
+    from gandalf_workshop.artisan_guildhall import artisans # to get the original function
+
+    original_coder = artisans.initialize_coder_agent_v1
+
+    def mock_initialize_coder_agent_v1(plan_input, commission_id, output_target_dir): # Changed commission_id_arg to commission_id
+        # Log that mock is called
+        print(f"MOCK initialize_coder_agent_v1 called for {commission_id} with target {output_target_dir}")
+        # It should still create the file in the designated output_target_dir
+        # The file is already created above, this mock just returns its path.
+        return CodeOutput(
+            code_path=bad_code_file_path,
+            message="Coder intentionally produced code with syntax error (mocked).",
+        )
+
+    monkeypatch.setattr(
+        "gandalf_workshop.workshop_manager.initialize_coder_agent_v1",
+        mock_initialize_coder_agent_v1
+    )
+    # Alternative: monkeypatch.setattr(artisans, "initialize_coder_agent_v1", mock_initialize_coder_agent_v1)
+    # but workshop_manager has its own import.
+
+    # Run the commission and expect an exception
+    with pytest.raises(Exception) as excinfo:
+        manager_v1.run_v1_commission(user_prompt, unique_commission_id)
+
+    # Assertions
+    # 1. Exception message should indicate audit failure
+    assert "Audit failed" in str(excinfo.value)
+    # The actual auditor should report a syntax error
+    assert "Syntax error:" in str(excinfo.value) # From initialize_auditor_agent_v1
+
+    # 2. Check logs
+    captured = capsys.readouterr()
     assert (
-        f"Commission '{unique_commission_id}' failed audit. Reason: {mock_audit_failure_message}"
+        f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
         in captured.out
+    )
+    # Planner log will be for the generic plan for "Create a python program with a syntax error."
+    assert "Planner Agent returned plan:" in captured.out
+
+    # Coder log (from the mock)
+    assert "MOCK initialize_coder_agent_v1 called" in captured.out
+    assert f"Coder Agent completed. Code path: {bad_code_file_path}" in captured.out
+    assert "Coder intentionally produced code with syntax error (mocked)." in captured.out
+
+
+    # Auditor log should show failure
+    assert "Auditor Agent reported:" in captured.out
+    assert f"{AuditStatus.FAILURE.value}" in captured.out
+    # Example from auditor: "Syntax error: Missing parentheses in call to 'print'. Did you mean print(...)? (<unknown>, line 1)"
+    assert "Syntax error" in captured.out # Actual error message from auditor
+
+    assert (
+        f"Commission '{unique_commission_id}' failed audit." in captured.out
     )
     assert (
         f"===== V1 Workflow for Commission: {unique_commission_id} Completed Successfully ====="
         not in captured.out
     )
 
+    # Restore original coder if other tests in the same session need it
+    # monkeypatch automatically handles teardown, so this might not be strictly necessary
+    # but good for clarity if needed.
+    # monkeypatch.setattr(artisans, "initialize_coder_agent_v1", original_coder)
 
-# No new dependencies are needed for this structure; pytest and unittest.mock are standard.
-# requirements-dev.txt should already cover these.
+
+# The dummy test can be removed or kept if useful for verifying fixture setup.
+# For now, let's remove it to keep the file focused on E2E tests.
+# def test_dummy_e2e_v1_setup_works(...)
+
+# Note: The test_audit_failure_v1_workflow was complex to make truly E2E
+# without modifying the existing Coder to intentionally produce bad code based on a plan.
+# The solution uses monkeypatch to substitute the coder at runtime for that specific test.
+# This is a common pattern for testing error paths that are hard to trigger naturally.

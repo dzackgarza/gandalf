@@ -17,7 +17,11 @@ from pathlib import Path
 # from datetime import datetime, timezone # No longer used in V1
 
 # Import the mock artisan crew and data models
-from gandalf_workshop.artisan_guildhall.artisans import initialize_planner_agent_v1
+from gandalf_workshop.artisan_guildhall.artisans import (
+    initialize_planner_agent_v1,
+    initialize_coder_agent_v1,
+    initialize_auditor_agent_v1,
+)
 
 # from gandalf_workshop.specs.data_models import PMReview, PMReviewDecision # Not used in V1 simple loop
 from gandalf_workshop.specs.data_models import (
@@ -26,12 +30,6 @@ from gandalf_workshop.specs.data_models import (
     AuditOutput,
     AuditStatus,
 )
-
-# Placeholder for actual agent imports or direct function calls for V1
-# from gandalf_workshop.artisan_guildhall.artisans import (
-#     initialize_coder_agent_v1,
-#     initialize_auditor_agent_v1
-# )
 
 
 class WorkshopManager:
@@ -72,66 +70,35 @@ class WorkshopManager:
         print(f"Workshop Manager: Planner Agent returned plan: {plan_tasks_str}")
 
         # 2. Call Coder Agent
-        # This will be replaced by actual agent call in later steps
-        # coder_agent = initialize_coder_agent_v1() # Conceptual
-        # code_output = coder_agent.generate_code(plan_output, commission_id)
         print(f"Workshop Manager: Invoking Coder Agent for '{commission_id}'.")
-        # Mock Coder Output for now
-        # Let's assume it creates a file in a temporary commission-specific directory
-        commission_work_dir = Path("gandalf_workshop/commission_work") / commission_id
-        commission_work_dir.mkdir(parents=True, exist_ok=True)
-
-        if plan_output.tasks == ["Create a Python file that prints 'Hello, World!'"]:
-            output_file = commission_work_dir / "hello.py"
-            with open(output_file, "w") as f:
-                f.write("print('Hello, World!')\n")
-            code_output = CodeOutput(
-                code_path=output_file, message="Python 'Hello, World!' generated."
+        commission_specific_work_dir = (
+            Path("gandalf_workshop/commission_work") / commission_id
+        )
+        # The Coder agent will create this directory if it doesn't exist.
+        code_output = initialize_coder_agent_v1(
+            plan_input=plan_output,
+            commission_id=commission_id,
+            output_target_dir=commission_specific_work_dir,
+        )
+        print(
+            f"Workshop Manager: Coder Agent completed. Code path: {code_output.code_path}, Message: {code_output.message}"
+        )
+        if not code_output.code_path.exists():
+            # This case should ideally be handled by the Coder agent returning an error CodeOutput
+            # or raising an exception that WorkshopManager catches.
+            # For now, an explicit check.
+            raise FileNotFoundError(
+                f"Coder Agent was supposed to create a file at {code_output.code_path} but it was not found."
             )
-            print(
-                f"Workshop Manager: Coder Agent generated code at: {code_output.code_path}"
-            )
-        else:
-            # Generic placeholder file for other prompts
-            output_file = commission_work_dir / "output.txt"
-            with open(output_file, "w") as f:
-                f.write(
-                    f"Content for: {user_prompt}\nBased on plan: {plan_output.tasks}"
-                )
-            code_output = CodeOutput(
-                code_path=output_file, message=f"Generated content for {user_prompt}."
-            )
-            print(
-                f"Workshop Manager: Coder Agent generated code at: {code_output.code_path}"
-            )
-            # raise NotImplementedError(f"V1 Coder cannot handle plan: {plan_output.tasks}")
 
         # 3. Call Auditor Agent
-        # This will be replaced by actual agent call in later steps
-        # auditor_agent = initialize_auditor_agent_v1() # Conceptual
-        # audit_output = auditor_agent.audit_code(code_output, commission_id)
         print(f"Workshop Manager: Invoking Auditor Agent for '{commission_id}'.")
-        # Mock Auditor Output for now
-        if code_output.code_path.name == "hello.py":
-            audit_output = AuditOutput(
-                status=AuditStatus.SUCCESS,
-                message="Audit passed for 'Hello, World!'.",
-                report_path=None,
-            )
-            print(
-                f"Workshop Manager: Auditor Agent reported: {audit_output.status} - {audit_output.message}"
-            )
-        else:
-            audit_output = AuditOutput(
-                status=AuditStatus.SUCCESS,
-                message="Audit passed for generic content.",
-                report_path=None,
-            )
-            print(
-                f"Workshop Manager: Auditor Agent reported: {audit_output.status} - {audit_output.message}"
-            )
-            # audit_output = AuditOutput(status=AuditStatus.FAILURE, message="Audit failed for unknown code.", report_path=None)
-            # print(f"Workshop Manager: Auditor Agent reported: {audit_output.status} - {audit_output.message}")
+        audit_output = initialize_auditor_agent_v1(
+            code_input=code_output, commission_id=commission_id
+        )
+        print(
+            f"Workshop Manager: Auditor Agent reported: {audit_output.status} - {audit_output.message}"
+        )
 
         if audit_output.status == AuditStatus.FAILURE:
             print(
