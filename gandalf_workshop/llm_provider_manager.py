@@ -2,14 +2,14 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 from together import Together
-from mistralai import Mistral
+from mistralai import Mistral # Corrected import name if it was MistralClient before
 from typing import Optional, Dict, Any, List
 
 class LLMProviderManager:
     """
     Manages selection and configuration of Large Language Model providers.
     It loads API keys from a .env file and can find a working LLM provider
-    from a predefined list (Gemini, Together AI, Mistral).
+    from a predefined list (Mistral, Gemini, Together AI).
     """
     def __init__(self):
         """
@@ -72,8 +72,6 @@ class LLMProviderManager:
                         model_id_to_add = model_info.name
 
                     if model_id_to_add:
-                        # Basic check: assume it's usable if it's a string and not an embedding model by name
-                        # This is a guess; real capabilities would need deeper inspection or API documentation.
                         if isinstance(model_id_to_add, str) and 'embed' not in model_id_to_add.lower():
                             models.append(model_id_to_add)
                         else:
@@ -101,9 +99,9 @@ class LLMProviderManager:
             print("DEBUG: Mistral API key not found.")
             return None
         try:
-            client = Mistral(api_key=self.mistral_api_key)
+            client = Mistral(api_key=self.mistral_api_key) # Use Mistral directly
             model_list = client.models.list()
-            models = [model_info.id for model_info in model_list.data] # Assuming all listed are usable for now
+            models = [model_info.id for model_info in model_list.data]
             if models:
                 self.provider_models["mistral"] = models
                 print(f"DEBUG: Mistral operational. Found models: {models}")
@@ -122,129 +120,90 @@ class LLMProviderManager:
     ) -> Optional[Dict[str, Any]]:
         """
         Finds and returns a working LLM provider.
-
+        The default search order is Mistral, Gemini, Together AI.
         Args:
             preferred_provider: The name of the preferred LLM provider (e.g., "gemini", "together_ai", "mistral").
             required_capabilities: A list of capabilities the model must support (e.g., ['chat', 'function_calling']).
                                    Currently a placeholder.
-
         Returns:
             A dictionary containing the provider's name, API key, a list of available models,
             and a pre-initialized client instance if a working provider is found.
             Returns None otherwise.
         """
         print(f"DEBUG: Searching for LLM provider. Preferred: {preferred_provider}")
-        # Define the order of checking providers
-        provider_checks = {
-            "gemini": self._check_gemini,
-            "together_ai": self._check_together_ai,
-            "mistral": self._check_mistral,
-        }
 
-        if preferred_provider and preferred_provider in provider_checks:
+        provider_checks_ordered = [
+            ("mistral", self._check_mistral),
+            ("gemini", self._check_gemini),
+            ("together_ai", self._check_together_ai),
+        ]
+
+        provider_map = dict(provider_checks_ordered)
+
+        # 1. If a preferred provider is specified, try it first.
+        if preferred_provider and preferred_provider in provider_map:
             print(f"DEBUG: Checking preferred provider: {preferred_provider}")
-            provider_info = provider_checks[preferred_provider]()
-            if provider_info and provider_info["models"]: # Ensure models are available
+            check_func_preferred = provider_map[preferred_provider]
+            provider_info = check_func_preferred()
+            if provider_info and provider_info.get("models"):
                 print(f"DEBUG: Preferred provider {preferred_provider} is operational.")
-                # Basic capability check (can be expanded)
-                # For now, we assume if models are listed, basic chat/generation is possible
                 return provider_info
             else:
-                print(f"DEBUG: Preferred provider {preferred_provider} not operational or no models found.")
+                # If preferred provider is not operational, we still print a message
+                # and then fall through to the ordered list check below.
+                # The ordered list check will skip this preferred provider if it's encountered again.
+                print(f"DEBUG: Preferred provider {preferred_provider} not operational, no models, or API key missing. Will try other providers.")
 
-        # If preferred provider fails or is not specified, check others
-        for provider_name, check_func in provider_checks.items():
-            if preferred_provider and provider_name == preferred_provider:
-                continue # Already checked
+        # 2. Iterate through providers in the defined order.
+        for provider_name_ordered, check_func_ordered in provider_checks_ordered:
+            # If a preferred provider was specified and failed, and we encounter it here, skip it.
+            if preferred_provider and provider_name_ordered == preferred_provider:
+                continue
 
-            print(f"DEBUG: Checking alternative provider: {provider_name}")
-            provider_info = check_func()
-            if provider_info and provider_info["models"]:
-                print(f"DEBUG: Alternative provider {provider_name} is operational.")
+            print(f"DEBUG: Checking provider: {provider_name_ordered}")
+            provider_info = check_func_ordered()
+            if provider_info and provider_info.get("models"):
+                print(f"DEBUG: Provider {provider_name_ordered} is operational.")
                 return provider_info
             else:
-                print(f"DEBUG: Alternative provider {provider_name} not operational or no models found.")
+                print(f"DEBUG: Provider {provider_name_ordered} not operational, no models, or API key missing.")
 
-        print("DEBUG: No operational LLM provider found.")
+        print("DEBUG: No operational LLM provider found after checking all options.")
         return None
 
 if __name__ == '__main__':
-    # Example Usage:
     manager = LLMProviderManager()
 
-    print("\nAttempting to get any provider:")
+    print("\nAttempting to get any provider (Mistral should be first if key is valid):")
     provider = manager.get_llm_provider()
     if provider:
         print(f"Selected Provider: {provider['provider_name']}")
-        print(f"First few models: {provider['models'][:3]}")
-        # Example: if provider['provider_name'] == 'gemini':
-        #    model = provider['client'].GenerativeModel(provider['models'][0]) # or a specific model
-        #    response = model.generate_content("Hello!")
-        #    print(response.text)
+        print(f"First few models: {provider['models'][:3] if provider.get('models') else 'No models listed'}")
     else:
         print("No LLM provider could be configured.")
 
-    print("\nAttempting to get 'mistral' provider:")
+    print("\nAttempting to get 'mistral' provider explicitly:")
     provider = manager.get_llm_provider(preferred_provider="mistral")
     if provider:
         print(f"Selected Provider: {provider['provider_name']}")
-        print(f"First few models: {provider['models'][:3]}")
+        print(f"First few models: {provider['models'][:3] if provider.get('models') else 'No models listed'}")
     else:
         print("Mistral provider could not be configured or has no models.")
 
-    print("\nAttempting to get 'gemini' provider:")
+    print("\nAttempting to get 'gemini' provider explicitly:")
     provider = manager.get_llm_provider(preferred_provider="gemini")
     if provider:
         print(f"Selected Provider: {provider['provider_name']}")
-        print(f"First few models: {provider['models'][:3]}")
+        print(f"First few models: {provider['models'][:3] if provider.get('models') else 'No models listed'}")
     else:
         print("Gemini provider could not be configured or has no models.")
 
-    print("\nAttempting to get 'together_ai' provider:")
+    print("\nAttempting to get 'together_ai' provider explicitly:")
     provider = manager.get_llm_provider(preferred_provider="together_ai")
     if provider:
         print(f"Selected Provider: {provider['provider_name']}")
-        print(f"First few models: {provider['models'][:3]}")
+        print(f"First few models: {provider['models'][:3] if provider.get('models') else 'No models listed'}")
     else:
         print("Together AI provider could not be configured or has no models.")
 
-    print("\nAttempting to get a non-existent provider:")
-    provider = manager.get_llm_provider(preferred_provider="non_existent_provider")
-    if provider:
-        print(f"Selected Provider: {provider['provider_name']}")
-    else:
-        print("Non_existent_provider could not be configured (as expected).")
-
-    print(f"\nDiscovered models cache: {manager.provider_models}")
-
-    # To make this runnable, ensure .env file is in the same directory or project root
-    # and contains GEMINI_API_KEY, TOGETHER_AI_API_KEY, MISTRAL_API_KEY
-    # Also, ensure google-generativeai, together, mistralai, python-dotenv are installed.
-    # Example .env:
-    # GEMINI_API_KEY=your_gemini_key
-    # TOGETHER_AI_API_KEY=your_together_key
-    # MISTRAL_API_KEY=your_mistral_key
-
-    # Note: The example usage will print DEBUG messages from the methods.
-    # These should be changed to logging in a production system.
-
-    # For Gemini, ensure the model supports 'generateContent'.
-    # For TogetherAI, the model type check is basic. Might need refinement.
-    # For Mistral, it lists all models; further filtering might be needed based on task.
-
-    # A simple test for Gemini client usability (if selected)
-    # if provider and provider.get('provider_name') == 'gemini':
-    #     try:
-    #         gemini_client = provider['client']
-    #         # Pick a model known for chat/text generation
-    #         # Example: find a model like 'gemini-1.5-flash' or 'gemini-pro'
-    #         suitable_model_name = next((m for m in provider['models'] if 'flash' in m or 'pro' in m), None)
-    #         if suitable_model_name:
-    #             print(f"Testing Gemini with model: {suitable_model_name}")
-    #             model_instance = gemini_client.GenerativeModel(suitable_model_name)
-    #             response = model_instance.generate_content("Explain quantum physics in one sentence.")
-    #             print(f"Gemini test response: {response.text}")
-    #         else:
-    #             print("No suitable Gemini model found for quick test.")
-    #     except Exception as e:
-    #         print(f"Error during Gemini client test: {e}")
+    print(f"\nFinal discovered models cache: {manager.provider_models}")

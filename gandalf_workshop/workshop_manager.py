@@ -83,9 +83,9 @@ class WorkshopManager:
             raise ConnectionError("LLM provider not available. Commission cannot be processed.")
 
         # 1. Call Planner Agent
-        # Assuming Planner does not need LLM for V1. If it did, self.llm_config would be passed.
-        logger.info(f"Workshop Manager: Invoking Planner Agent for '{commission_id}'.")
-        plan_output = initialize_planner_agent_v1(user_prompt, commission_id)
+        # Using the Live Planner Agent, passing the LLM configuration.
+        logger.info(f"Workshop Manager: Invoking Live Planner Agent for '{commission_id}'.")
+        plan_output = initialize_live_planner_agent(user_prompt, commission_id, llm_config=self.llm_config)
         # Ensure the log statement below adheres to line length
         plan_tasks_str = str(plan_output.tasks)
         if len(plan_tasks_str) > 50:  # Arbitrary short length for log
@@ -98,11 +98,11 @@ class WorkshopManager:
             Path("outputs") / commission_id
         )
         # The Coder agent will create this directory if it doesn't exist.
-        code_output = initialize_live_coder_agent( # Function call updated
+        code_output = initialize_live_coder_agent(
             plan_input=plan_output,
             commission_id=commission_id,
             output_target_dir=commission_specific_work_dir,
-            llm_config=self.llm_config # Pass the LLM configuration to the Coder
+            llm_config=self.llm_config # Pass the LLM configuration
         )
         logger.info(
             f"Workshop Manager: Live Coder Agent completed. Code path: {code_output.code_path}, Message: {code_output.message}" # Log updated
@@ -117,8 +117,8 @@ class WorkshopManager:
 
         # 3. Call Auditor Agent
         # Assuming Auditor does not need LLM for V1.
-        logger.info(f"Workshop Manager: Invoking Auditor Agent for '{commission_id}'.")
-        audit_output = initialize_auditor_agent_v1(
+        logger.info(f"Workshop Manager: Invoking Syntax Auditor Agent for '{commission_id}'.") # Clarified log
+        syntax_audit_output = initialize_auditor_agent_v1( # Changed variable name
             code_input=code_output, commission_id=commission_id
         )
         logger.info(
@@ -147,7 +147,8 @@ class WorkshopManager:
         live_audit_output = initialize_live_auditor_agent(
             generated_code=generated_code_str,
             plan_input=plan_output, # Pass the plan_output from the planner
-            commission_id=commission_id
+            commission_id=commission_id,
+            llm_config=self.llm_config # Pass the LLM configuration
         )
         logger.info(
             f"Workshop Manager: Live Auditor Agent reported: {live_audit_output.status} - {live_audit_output.message}"

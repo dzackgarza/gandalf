@@ -181,3 +181,86 @@ clean:
 	rm -f gandalf_workshop/tests/test_dummy.py
 	rm -f .coverage
 	@echo "✅ Cleanup complete."
+
+# Target to run live tests with specific prompts
+.PHONY: test-live
+test-live: install
+	@echo "--- Running live tests ---"
+	mkdir -p outputs
+	@echo "Ensuring .env file is loaded. Please ensure your API keys are set in .env"
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found. Please create it and add your API keys."; \
+		exit 1; \
+	fi
+	# Load .env variables into the current shell session for this target
+	# This might not be perfectly portable across all `make` versions or shells.
+	# A more robust way is to ensure main.py loads it, which it does.
+	# This line is more for visibility and potential direct use of env vars in Make if needed later.
+	# Removing: set -a; source .env; set +a (main.py handles .env loading)
+
+	# Test 1: CLI Calculator
+	@echo "\n--- Test 1: CLI Calculator ---"
+	.venv/bin/python main.py --prompt "Write a CLI calculator app" --unique_id="cli-calculator"
+	@if [ ! -d "outputs/cli-calculator" ]; then \
+		echo "Error: Output directory outputs/cli-calculator not found for CLI Calculator."; \
+		exit 1; \
+	fi
+	@if [ -z "$$(ls -A outputs/cli-calculator)" ]; then \
+		echo "Error: Output directory outputs/cli-calculator is empty for CLI Calculator."; \
+		exit 1; \
+	fi
+	@echo "✅ CLI Calculator test: Output directory and artifacts exist."
+
+	# Test 2: Weather API Script
+	@echo "\n--- Test 2: Weather API Script ---"
+	.venv/bin/python main.py --prompt "Write a Python script to fetch and display the current weather for a given city using an online API." --unique_id="weather-api-script"
+	@if [ ! -d "outputs/weather-api-script" ]; then \
+		echo "Error: Output directory outputs/weather-api-script not found for Weather API Script."; \
+		exit 1; \
+	fi
+	@if [ -z "$$(ls -A outputs/weather-api-script)" ]; then \
+		echo "Error: Output directory outputs/weather-api-script is empty for Weather API Script."; \
+		exit 1; \
+	fi
+	@echo "✅ Weather API Script test: Output directory and artifacts exist."
+
+	# Test 3: Static Web Server
+	@echo "\n--- Test 3: Static Web Server ---"
+	.venv/bin/python main.py --prompt "Write a simple web server in Python that serves static files from a 'public' directory." --unique_id="static-web-server"
+	@if [ ! -d "outputs/static-web-server" ]; then \
+		echo "Error: Output directory outputs/static-web-server not found for Static Web Server."; \
+		exit 1; \
+	fi
+	@if [ -z "$$(ls -A outputs/static-web-server)" ]; then \
+		echo "Error: Output directory outputs/static-web-server is empty for Static Web Server."; \
+		exit 1; \
+	fi
+	@echo "✅ Static Web Server test: Output directory and artifacts exist."
+
+	# Test 4: GUI Calculator (Streamlit)
+	@echo "\n--- Test 4: GUI Calculator (Streamlit) ---"
+	.venv/bin/python main.py --prompt "Write a GUI calculator app with a Streamlit interface" --unique_id="gui-calculator-streamlit"
+	@if [ ! -d "outputs/gui-calculator-streamlit" ]; then \
+		echo "Error: Output directory outputs/gui-calculator-streamlit not found for GUI Calculator."; \
+		exit 1; \
+	fi
+	@if [ -z "$$(ls -A outputs/gui-calculator-streamlit)" ]; then \
+		echo "Error: Output directory outputs/gui-calculator-streamlit is empty for GUI Calculator."; \
+		exit 1; \
+	fi
+	@echo "✅ GUI Calculator (Streamlit) test: Output directory and artifacts exist."
+
+	# Test 5: Sagemath Automorphism Group
+	@echo "\n--- Test 5: Sagemath Automorphism Group ---"
+	.venv/bin/python main.py --prompt "Write a Sagemath script that computes the automorphism group Aut(G) of an arbitrary group G, as a permutation group." --unique_id="sagemath-automorphism-group"
+	@if [ ! -d "outputs/sagemath-automorphism-group" ]; then \
+		echo "Error: Output directory outputs/sagemath-automorphism-group not found for Sagemath script."; \
+		exit 1; \
+	fi
+	@if [ -z "$$(ls -A outputs/sagemath-automorphism-group)" ]; then \
+		echo "Error: Output directory outputs/sagemath-automorphism-group is empty for Sagemath script."; \
+		exit 1; \
+	fi
+	@echo "✅ Sagemath Automorphism Group test: Output directory and artifacts exist."
+
+	@echo "\n🎉 All live tests passed. Artifacts generated in respective output directories."
