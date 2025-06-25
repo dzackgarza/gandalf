@@ -355,3 +355,84 @@ def initialize_auditor_agent_v1(
             message=f"Unexpected error during audit: {str(e)}",
             report_path=None,
         )
+
+
+def initialize_coder_agent_v1(
+    plan_input: PlanOutput,
+    commission_id: str,
+    output_dir: Path = Path("gandalf_workshop/generated_code"),
+) -> CodeOutput:
+    """
+    Initializes and runs a basic V1 Coder Agent.
+    For V1, this is a simple function that creates a file based on the plan.
+    For the "Hello, World" E2E case, it generates a Python file.
+
+    Args:
+        plan_input: A PlanOutput object containing the tasks.
+        commission_id: A unique ID for this commission.
+        output_dir: The directory where the generated code will be saved.
+
+    Returns:
+        A CodeOutput object.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Artisan Assembly: V1 Basic Coder Agent activated for commission "
+        f"'{commission_id}'."
+    )
+    logger.info(f"  Plan tasks: {plan_input.tasks}")
+
+    # Ensure the output directory for the commission exists
+    commission_output_dir = output_dir / commission_id
+    commission_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # For V1, we assume the first task is the primary one.
+    # And for "Hello, World", we specifically look for that task.
+    if not plan_input.tasks:
+        logger.error("  Coder Error: No tasks found in the plan.")
+        return CodeOutput(
+            code_path=commission_output_dir,  # Return dir path on error
+            message="Coder Error: No tasks found in plan.",
+        )
+
+    first_task = plan_input.tasks[0]
+    file_path: Path | None = None  # Use | for union type for Python 3.10+
+    file_content: str = ""
+    message: str = ""
+
+    if "Create a Python file that prints 'Hello, World!'" in first_task:
+        file_name = "main.py"
+        file_content = 'print("Hello, World!")\n'
+        file_path = commission_output_dir / file_name
+        message = f"Successfully created {file_name} for 'Hello, World!' task."
+        logger.info(f"  V1 Coder: Preparing to create '{file_name}' for Hello World.")
+    else:
+        # Generic task handling: create a text file with task description
+        file_name = "task_output.txt"
+        file_content = f"Task from plan:\n{first_task}\n"
+        file_path = commission_output_dir / file_name
+        message = f"Successfully created {file_name} for generic task."
+        logger.info(
+            f"  V1 Coder: Preparing to create '{file_name}' for generic task: {first_task[:50]}..."
+        )
+
+    if file_path:
+        try:
+            with open(file_path, "w") as f:
+                f.write(file_content)
+            logger.info(f"  V1 Coder: Successfully wrote to {file_path}")
+            return CodeOutput(code_path=file_path, message=message)
+        except IOError as e:
+            logger.error(
+                f"  Coder Error: Could not write to file {file_path}. Error: {e}"
+            )
+            return CodeOutput(
+                code_path=commission_output_dir,  # Return dir path on error
+                message=f"Coder Error: Could not write to file {file_path}. Error: {e}",
+            )
+    else:  # Should not happen if logic is correct, but as a safeguard
+        logger.error("  Coder Error: File path was not set.")
+        return CodeOutput(
+            code_path=commission_output_dir,
+            message="Coder Error: Internal error, file path not set.",
+        )
