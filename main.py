@@ -14,12 +14,20 @@ import os # Import os
 from pathlib import Path # Import Path
 from dotenv import load_dotenv # Import load_dotenv
 
-# Construct path to .env file relative to main.py's location
-# Assumes main.py is in the project root, and .env is also in the project root.
-dotenv_path = Path(__file__).resolve().parent / '.env'
-# print(f"Attempting to load .env from: {dotenv_path}") # Diagnostic
+# Check for DOTENV_PATH environment variable first
+env_path_override = os.getenv("DOTENV_PATH")
+if env_path_override:
+    dotenv_path = Path(env_path_override)
+    print(f"Attempting to load .env from DOTENV_PATH: {dotenv_path}")
+else:
+    # Construct path to .env file relative to main.py's location
+    # Assumes main.py is in the project root, and .env is also in the project root.
+    dotenv_path = Path(__file__).resolve().parent / '.env'
+    print(f"Attempting to load .env from default relative path: {dotenv_path}")
+
 if dotenv_path.exists():
     load_dotenv(dotenv_path=dotenv_path, override=True)
+    # print(f"Successfully loaded .env from: {dotenv_path}") # Optional: for successful load
 else:
     print(f"Warning: .env file not found at {dotenv_path}. Environment variables may not be loaded.")
 
