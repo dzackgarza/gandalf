@@ -16,47 +16,63 @@
 
 ---
 
-**Your Current State & Context (as of this update):**
-*   You (the current Jules iteration) just successfully implemented the V1 End-to-End (E2E) test for a "Hello, World!" application generation.
-*   This involved:
-    *   Refactoring `gandalf_workshop/workshop_manager.py`'s `run_v1_commission` method to call the actual V1 agent functions (`initialize_coder_agent_v1`, `initialize_auditor_agent_v1`) from `gandalf_workshop/artisan_guildhall/artisans.py`, removing its internal mock logic for these agents.
-    *   Updating `gandalf_workshop/artisan_guildhall/artisans.py`:
-        *   Modified `initialize_coder_agent_v1` to accept a specific `output_target_dir` (controlled by `WorkshopManager`) and to create `main.py` for the "Hello, World!" case.
-        *   Refactored `initialize_auditor_agent_v1` to use the built-in `compile()` function for syntax checking, preventing issues with file modification (`.pyc` generation) that were causing `UnicodeDecodeError` in tests.
-    *   Adapting the existing E2E test file `gandalf_workshop/tests/test_e2e_v1.py`:
-        *   Removed mocks for agent functions (`initialize_planner_agent_v1`) and data models (`CodeOutput`, `AuditOutput`) to make the tests truly E2E for the success path.
-        *   Updated `test_e2e_hello_world_generation` to verify file creation (`main.py`), content, successful execution via `subprocess`, and audit success.
-        *   Refined `test_e2e_audit_failure_syntax_error` to use `monkeypatch` for the Coder to produce a file with a syntax error, ensuring the Auditor correctly reports the failure.
-    *   Updating the unit tests for `WorkshopManager` in `gandalf_workshop/tests/test_workshop_manager.py` to mock the agent *initialization functions* rather than the data models, aligning with the `WorkshopManager` refactoring.
-    *   Ensured all tests pass by running `python -m pytest ...` after resolving dependency and environment issues (initial `ModuleNotFoundError: No module named 'yaml'` and subsequent test failures due to code behavior and test assertions).
-*   All these changes are staged for commit.
-*   This `AGENTS.md` file has been updated with this summary and next steps.
+## Task: Implement Live LLM Agent Chain (For Jules)
 
-**Next Steps & Focus Areas for the *Next* Jules Iteration:**
+Hello Jules,
 
-The V1 E2E test provides a basic validation of the core workflow. Now, the individual agent capabilities need to be developed beyond their current placeholder/basic implementations. Based on `docs/roadmap/V1.md` and the original JULES_INSTRUCTIONS:
+Your next major task is to upgrade the Gandalf Workshop's V1 pipeline to use live LLM agents, replacing the current mock/placeholder implementations. This will involve a significant refactoring of the existing V1 workflow.
 
-1.  **Establish `develop/V1` Branch:**
-    *   If it doesn't exist, create a `develop/V1` integration branch from the current `main` or an appropriate base. This branch will be where `feature/V1-*` branches are merged. *(Self-correction: This was listed in original instructions but might be superseded by current practices. Verify if this branch is actively used or if features are merged to main/another branch.)*
+**Phase 1: Understanding and Initial Setup**
 
-2.  **Enhance Core Agent Functionality (Implement features from `docs/roadmap/V1.md`):**
-    *   **`feature/V1-orchestrator-loop`**: While the `WorkshopManager` has a basic sequence, this task likely implies more robust state management, error handling, and potentially iterative capabilities if required for V1 (though V1 is simple sequential). Review `gandalf_workshop/workshop_manager.py` and the V1 roadmap description for this feature.
-    *   **`feature/V1-communication-protocol`**: The current `PlanOutput`, `CodeOutput`, `AuditOutput` are basic. This task involves formally defining and implementing any more complex data structures or schemas needed for V1, as outlined in `gandalf_workshop/specs/data_models.py` and `docs/2_operational_framework/communication_protocols.md`. Ensure V1 focuses on simplicity.
-    *   **`feature/V1-planner-agent-basic`**: The current planner is a placeholder. Develop `initialize_planner_agent_v1` in `gandalf_workshop/artisan_guildhall/artisans.py` to take a user prompt and produce a more structured plan (e.g., a list of steps as a string or simple list within the defined communication protocol). Refer to prompts in `gandalf_workshop/artisan_guildhall/prompts.py`.
-    *   **`feature/V1-coder-agent-basic`**: The current coder is also basic. Enhance `initialize_coder_agent_v1` to better interpret plans from the Planner and generate corresponding code beyond the "Hello, World" and generic text file.
-    *   **`feature/V1-auditor-agent-basic`**: The current auditor only does a syntax check. Expand `initialize_auditor_agent_v1` to perform more meaningful (though still basic for V1) static analysis or checks.
+1.  **Read the Audit Report:** Begin by thoroughly reading the `AUDIT_V1.md` file in the repository. It details why the current V1 system does not use LLMs and should give you a clear picture of the components that need modification.
+2.  **API Key Management:**
+    *   You will need an OpenAI API key to complete this task. Assume the user will provide this to you when you request it, or that it can be set as an environment variable (e.g., `OPENAI_API_KEY`).
+    *   Modify the code to securely access this API key (e.g., using `os.getenv("OPENAI_API_KEY")`). **Do not hardcode the API key.** Prompt the user for the key if it's not found in the environment.
 
-**General Guidance for Next Iteration:**
+**Phase 2: Implementing Live LLM Agents (Iterative Approach)**
 
-*   **Follow Test-Driven Development (TDD):** For any new Python code (orchestrator logic, agent functionality), write unit tests first. Augment with integration tests where appropriate.
-    *   Look at existing tests in `gandalf_workshop/tests/` for examples.
-    *   Ensure `Makefile` targets like `test` and `lint` (via `make audit`) are used and pass.
-*   **Adhere to `CONTRIBUTING.md`:** This file provides guidelines for development.
-*   **Branching Strategy:**
-    *   Create specific `feature/V1-*` branches for each component as outlined in `docs/roadmap/V1.md`.
-    *   Merge completed features into the designated integration branch (e.g., `develop/V1` or `main` as per project conventions).
-*   **Small, Atomic Commits:** Keep commits focused on a single logical change.
-*   **Consult Documentation:** The `docs/` folder, especially `docs/roadmap/V1.md` and `docs/VERSION_ROADMAP.md`, is critical.
-*   **AGENTS.md:** Always check this file for the latest context and meta-instructions.
+Focus on replacing the mock V1 components one by one. We recommend using the `openai` library directly for initial simplicity, or `crewai` if you assess it to be straightforward for integrating the existing charter prompts.
 
-Good luck with the continued V1 implementation!
+1.  **Live Planner Agent:**
+    *   Modify `gandalf_workshop/artisan_guildhall/artisans.py`:
+        *   Update `initialize_planner_agent_v1` (or create a new `initialize_live_planner_agent`).
+        *   This function should now instantiate an LLM client (e.g., `openai.OpenAI()`).
+        *   It should use the `PLANNER_CHARTER_PROMPT` from `gandalf_workshop/artisan_guildhall/prompts.py` as the system message or main instruction for the LLM.
+        *   The user's input prompt should be incorporated into the LLM call.
+        *   The LLM's response, which should be a plan (ideally structured, perhaps YAML or JSON as hinted in `PLANNER_CHARTER_PROMPT`), needs to be parsed and returned as a `PlanOutput` object.
+    *   Modify `gandalf_workshop/workshop_manager.py`:
+        *   Ensure `run_v1_commission` calls your new live planner agent function.
+
+2.  **Live Coder Agent:**
+    *   Modify `gandalf_workshop/artisan_guildhall/artisans.py`:
+        *   Create a new function `initialize_live_coder_agent`.
+        *   This function should take the `PlanOutput` (from the live Planner) as input.
+        *   It should instantiate an LLM client.
+        *   It should use the `CODER_CHARTER_PROMPT` from `prompts.py`.
+        *   The plan details should be formatted and passed to the LLM.
+        *   The LLM's response should be the generated code.
+        *   This code should be saved to a file (e.g., `generated_code.py` within the commission directory), and the path returned in a `CodeOutput` object.
+    *   Modify `gandalf_workshop/workshop_manager.py`:
+        *   Replace the inline mock Coder logic in `run_v1_commission` with a call to your new `initialize_live_coder_agent`.
+
+3.  **Live Auditor Agent (Basic Syntax Check First, then LLM):**
+    *   **Initial Step:** Modify `gandalf_workshop/workshop_manager.py` to call the existing `initialize_auditor_agent_v1` from `artisans.py` (which does a `py_compile` syntax check). This is better than the current inline mock auditor.
+    *   **Future Enhancement (Optional for this task, but consider):** Create an `initialize_live_auditor_agent` in `artisans.py` that uses an LLM with `GENERAL_INSPECTOR_CHARTER_PROMPT` to perform a more semantic audit of the code from the live Coder Agent. For now, ensuring the syntax check auditor is called is sufficient.
+
+**Phase 3: Testing and Refinement**
+
+*   **Iterative Testing:** Test each agent as you make it live.
+    *   Start with simple prompts (e.g., "create a python function that adds two numbers").
+    *   Gradually increase complexity. Test the "Create a calculator app with a streamlit GUI" prompt.
+*   **Error Handling:** Implement basic error handling for API calls (e.g., network issues, API errors).
+*   **Output Parsing:** Be robust in parsing the outputs from LLMs. They might not always perfectly adhere to requested formats.
+*   **Environment Variables:** Ensure your solution relies on `OPENAI_API_KEY` being set in the environment.
+
+**General Guidelines:**
+
+*   **Refer to Documentation:** The `docs/` directory, especially `technology_stack.md` and `communication_protocols.md`, contains the original design intent for using frameworks like CrewAI and AutoGen. While a direct implementation of that full stack might be too complex for one go, it provides good context. For this task, direct OpenAI API calls or a simple CrewAI setup for individual agents is acceptable.
+*   **Adhere to Existing Data Models:** Use the `PlanOutput`, `CodeOutput`, `AuditOutput` data models defined in `gandalf_workshop/specs/data_models.py`.
+*   **Keep Changes Focused:** Primarily modify `workshop_manager.py` and `artisans.py`. You may need to adjust `data_models.py` if the LLM outputs require different structuring that still fits the spirit of the existing models.
+*   **Documentation:** Add comments to your new code explaining its logic. Update relevant docstrings.
+
+Good luck, Jules! This is a challenging but important step in making Gandalf Workshop truly functional.
