@@ -18,6 +18,18 @@ they start a commission. Each function here would typically set up agents
 # Import necessary AI framework components here, e.g.:
 # from crewai import Agent, Task, Crew, Process
 
+import yaml
+import logging
+from pathlib import Path
+from datetime import datetime, timezone
+
+# from .prompts import (PLANNER_CHARTER_PROMPT, CODER_CHARTER_PROMPT,
+#                       GENERAL_INSPECTOR_CHARTER_PROMPT)
+# Import necessary AI framework components here, e.g.:
+# from crewai import Agent, Task, Crew, Process
+from gandalf_workshop.specs.data_models import PlanOutput, PMReview, PMReviewDecision
+
+
 # Metaphor: These functions are like the Workshop Manager's assistants who
 # know how to quickly assemble Planners, Coders, or Inspectors, providing
 # them with their official charters (prompts) and tools.
@@ -136,6 +148,44 @@ def initialize_inspection_crew():
     print("Artisan Assembly: Inspection Crew initialized (placeholder).")
 
 
+# V1 Basic Agents - these are simple functions for now, not full "crews"
+# They will be integrated into the V1 WorkshopManager orchestrator loop.
+# PlanOutput is already imported at the top of the file.
+
+
+def initialize_planner_agent_v1(user_prompt: str, commission_id: str) -> PlanOutput:
+    """
+    Initializes and runs a basic V1 Planner Agent.
+    For V1, this is a simple function that returns a predefined plan
+    based on the user prompt. It does not involve a full LLM crew.
+
+    Args:
+        user_prompt: The initial request from the client.
+        commission_id: A unique ID for this commission.
+
+    Returns:
+        A PlanOutput object.
+    """
+    print(
+        f"Artisan Assembly: V1 Basic Planner Agent activated for commission "
+        f"'{commission_id}'."
+    )
+    print(f"  User Prompt: {user_prompt[:100]}...")  # Log a snippet of the prompt
+
+    if "hello world" in user_prompt.lower():
+        plan = PlanOutput(
+            tasks=["Create a Python file that prints 'Hello, World!'"], details=None
+        )
+        print("  V1 Planner: Generated 'Hello, World!' plan.")
+    else:
+        plan = PlanOutput(
+            tasks=[f"Task 1: Implement feature based on: {user_prompt}"], details=None
+        )
+        print(f"  V1 Planner: Generated generic plan for: {user_prompt[:50]}...")
+
+    return plan
+
+
 def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="1.0"):
     """
     Simulates the PM Review Crew analyzing a blueprint.
@@ -153,13 +203,12 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
     Returns:
         pathlib.Path: Path to the generated PM_Review.json file.
     """
-    import yaml  # Added for reading blueprint content
-    import logging  # For improved exception logging
-    from pathlib import Path
-    from datetime import datetime, timezone
-    from gandalf_workshop.specs.data_models import PMReview, PMReviewDecision
+    # Imports moved to top of file
 
-    print(f"Artisan Assembly: PM Review Crew activated for blueprint: {blueprint_path}")
+    print(
+        f"Artisan Assembly: PM Review Crew activated for blueprint: "
+        f"{blueprint_path}"
+    )
 
     # Mock decision logic:
     # Read blueprint summary. If "simple" or "mvp", approve. Else, request revision.

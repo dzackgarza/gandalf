@@ -1,0 +1,10 @@
+{
+  "commission_id": "pm_crew_test_001",
+  "blueprint_path": "/tmp/pytest-of-swebot/pytest-4/test_initialize_pm_review_crew0/blueprints/pm_crew_test_001/blueprint.yaml",
+  "blueprint_version_reviewed": "1.0",
+  "review_timestamp": "2025-06-25T03:52:54.385776Z",
+  "pm_agent_id": "Mock_PM_Agent_v0.1",
+  "decision": "APPROVED",
+  "rationale": "Mock PM Review: Blueprint approved. Summary indicates a simple or MVP scope.",
+  "suggested_focus_areas_for_revision": null
+}

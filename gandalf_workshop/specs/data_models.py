@@ -1,8 +1,55 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
+from pathlib import Path
 
 from pydantic import BaseModel, Field, validator
+
+
+class AuditStatus(str, Enum):
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+
+
+class PlanOutput(BaseModel):
+    """
+    Output of the Planner Agent. Contains the plan for the Coder Agent.
+    """
+
+    tasks: List[str] = Field(..., description="List of tasks for the Coder Agent.")
+    details: Optional[Dict[str, Any]] = Field(
+        None, description="Optional dictionary for additional plan details."
+    )
+
+
+class CodeOutput(BaseModel):
+    """
+    Output of the Coder Agent. Contains the path to the generated code.
+    """
+
+    code_path: Path = Field(
+        ...,
+        description="Path to the root of generated code (file/directory).",
+    )
+    message: Optional[str] = Field(
+        None, description="Optional message from the Coder Agent."
+    )
+
+
+class AuditOutput(BaseModel):
+    """
+    Output of the Auditor Agent. Contains the result of the audit.
+    """
+
+    status: AuditStatus = Field(
+        ..., description="Status of the audit (SUCCESS or FAILURE)."
+    )
+    message: Optional[str] = Field(
+        None, description="Optional message from the Auditor Agent, detailing findings."
+    )
+    report_path: Optional[Path] = Field(
+        None, description="Optional path to a detailed audit report."
+    )
 
 
 class PMReviewDecision(str, Enum):

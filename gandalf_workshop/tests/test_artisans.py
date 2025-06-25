@@ -1,5 +1,5 @@
-import pytest
 from gandalf_workshop.artisan_guildhall import artisans
+from gandalf_workshop.specs.data_models import PlanOutput  # Moved here
 
 
 def test_initialize_planning_crew():
@@ -31,9 +31,10 @@ def test_initialize_pm_review_crew_mock_logic(tmp_path):
     Tests the mock logic of initialize_pm_review_crew directly.
     This replicates the tests previously in artisans.py's __main__ block.
     """
-    from pathlib import Path
     import yaml
     from gandalf_workshop.specs.data_models import PMReviewDecision
+
+    # Path is used by tmp_path fixture implicitly, but explicit import not needed here.
 
     commission_id = "pm_crew_test_001"
     mock_bp_dir = tmp_path / "blueprints" / commission_id
@@ -103,3 +104,42 @@ def test_initialize_pm_review_crew_mock_logic(tmp_path):
         review_content_error = yaml.safe_load(rf)
     assert review_content_error["decision"] == PMReviewDecision.REVISION_REQUESTED.value
     assert "Error reading blueprint" in review_content_error["rationale"]
+
+
+# Tests for V1 Basic Agents
+# PlanOutput is now imported at the top of the file.
+
+
+def test_initialize_planner_agent_v1_hello_world():
+    """Tests the V1 basic planner for a 'hello world' prompt."""
+    prompt = "Please create a simple hello world program."
+    commission_id = "test_hw_planner_001"
+
+    plan_output = artisans.initialize_planner_agent_v1(prompt, commission_id)
+
+    assert isinstance(plan_output, PlanOutput)
+    assert plan_output.tasks == ["Create a Python file that prints 'Hello, World!'"]
+    assert plan_output.details is None
+
+
+def test_initialize_planner_agent_v1_generic_prompt():
+    """Tests the V1 basic planner for a generic prompt."""
+    prompt = "Develop a new feature for user authentication."
+    commission_id = "test_generic_planner_002"
+
+    plan_output = artisans.initialize_planner_agent_v1(prompt, commission_id)
+
+    assert isinstance(plan_output, PlanOutput)
+    assert plan_output.tasks == [f"Task 1: Implement feature based on: {prompt}"]
+    assert plan_output.details is None
+
+
+def test_initialize_planner_agent_v1_case_insensitivity_for_hello_world():
+    """Tests that 'hello world' detection is case-insensitive."""
+    prompt = "Can you make a HELLO WORLD script?"
+    commission_id = "test_hw_case_planner_003"
+
+    plan_output = artisans.initialize_planner_agent_v1(prompt, commission_id)
+
+    assert isinstance(plan_output, PlanOutput)
+    assert plan_output.tasks == ["Create a Python file that prints 'Hello, World!'"]

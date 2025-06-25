@@ -32,16 +32,16 @@ mkdir -p gandalf_workshop/tests
 touch gandalf_workshop/tests/__init__.py
 
 echo "Running black to format files before checking..."
-black --exclude "gandalf_workshop/hardcoded_artifacts" .
+black gandalf_workshop/ main.py # Add main.py as it's also scaffolded
 
 echo "Running black --check and flake8..."
-black --check --exclude "gandalf_workshop/hardcoded_artifacts" .
-flake8 --exclude "gandalf_workshop/hardcoded_artifacts" .
+black --check gandalf_workshop/ main.py
+flake8 gandalf_workshop/ main.py
 echo "✅ Linter and Formatter Check Passed."
 
 # --- Stage B: Type Safety Enforcement ---
 echo "[2/4] Running Type Safety Enforcement..."
-mypy --exclude "gandalf_workshop/hardcoded_artifacts" . --ignore-missing-imports
+mypy gandalf_workshop/ main.py --ignore-missing-imports
 echo "✅ Type Safety Enforcement Passed."
 
 # --- Stage C: Test Coverage Enforcement (Unit Tests) ---
