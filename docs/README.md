@@ -24,8 +24,12 @@ The documentation is organized into the following main sections:
     *   `communication_protocols.md`: Specifies the data schemas and formats (e.g., Blueprints, Audit Receipts) used for communication between agents and the Workshop Manager.
 
 4.  **[Guides and References (`3_guides_and_references/README.md`)]**: Provides practical information for setting up and interacting with the Gandalf Workshop.
-    *   `workshop_setup.md`: Step-by-step instructions for setting up the development environment.
+    *   `workshop_setup.md`: Step-by-step instructions for setting up the development environment. (Deprecated, see User Guides)
     *   `workshop_directory.md`: An overview of the Gandalf Workshop's directory structure and the purpose of each key location.
+
+5.  **[User Guides (`user_guides/`)**: Practical guides for developers and users.
+    *   **[Setting Up Development Environment (`user_guides/setting_up_development_environment.md`)]**: Instructions for preparing your local machine for Gandalf Workshop development.
+    *   **[Running the V1 Application (`user_guides/running_the_application_v1.md`)]**: How to execute and interact with the V1 version of the application.
 
 ## Core Principles
 
