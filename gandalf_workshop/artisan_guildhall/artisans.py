@@ -27,7 +27,15 @@ from datetime import datetime, timezone
 #                       GENERAL_INSPECTOR_CHARTER_PROMPT)
 # Import necessary AI framework components here, e.g.:
 # from crewai import Agent, Task, Crew, Process
-from gandalf_workshop.specs.data_models import PlanOutput, PMReview, PMReviewDecision
+from gandalf_workshop.specs.data_models import (
+    PlanOutput,
+    PMReview,
+    PMReviewDecision,
+    CodeOutput,  # Added for Auditor V1
+    AuditOutput,  # Added for Auditor V1
+    AuditStatus,  # Added for Auditor V1
+)
+import py_compile  # Added for Auditor V1
 
 
 # Metaphor: These functions are like the Workshop Manager's assistants who
@@ -150,7 +158,7 @@ def initialize_inspection_crew():
 
 # V1 Basic Agents - these are simple functions for now, not full "crews"
 # They will be integrated into the V1 WorkshopManager orchestrator loop.
-# PlanOutput is already imported at the top of the file.
+# PlanOutput, CodeOutput, AuditOutput, AuditStatus are imported at the top.
 
 
 def initialize_planner_agent_v1(user_prompt: str, commission_id: str) -> PlanOutput:
@@ -283,3 +291,67 @@ def initialize_pm_review_crew(blueprint_path, commission_id, blueprint_version="
 # The __main__ block below was moved to a test in:
 # gandalf_workshop/tests/test_artisans.py
 # to allow pytest to include its logic in coverage reports.
+
+
+def initialize_auditor_agent_v1(
+    code_input: CodeOutput, commission_id: str
+) -> AuditOutput:
+    """
+    Initializes and runs a basic V1 Auditor Agent.
+    For V1, this is a simple function that performs a syntax check on the
+    provided Python code file.
+
+    Args:
+        code_input: A CodeOutput object containing the path to the code.
+        commission_id: A unique ID for this commission.
+
+    Returns:
+        An AuditOutput object.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"Artisan Assembly: V1 Basic Auditor Agent activated for commission "
+        f"'{commission_id}'."
+    )
+    logger.info(f"  Auditing code at: {code_input.code_path}")
+
+    if not code_input.code_path.exists() or not code_input.code_path.is_file():
+        logger.error(f"  Audit Error: Code file not found at {code_input.code_path}")
+        return AuditOutput(
+            status=AuditStatus.FAILURE,
+            message=f"Code file not found: {code_input.code_path}",
+            report_path=None,
+        )
+
+    try:
+        # For syntax check only, we don't need to write a .pyc file.
+        # 'dfile' is the path for the .pyc file. Set to None if not needed.
+        # 'cfile' is the source path used in error messages.
+        py_compile.compile(
+            str(code_input.code_path),
+            dfile=None,  # Do not generate a .pyc file
+            cfile=str(code_input.code_path),
+            doraise=True,
+        )
+        logger.info("  V1 Auditor: Syntax check PASSED.")
+        return AuditOutput(
+            status=AuditStatus.SUCCESS, message="Syntax OK.", report_path=None
+        )
+    except py_compile.PyCompileError as e:
+        logger.warning(f"  V1 Auditor: Syntax check FAILED. Error: {e}")
+        # Ensure the error message is a string
+        error_message = str(e.msg) if hasattr(e, "msg") else str(e)
+        return AuditOutput(
+            status=AuditStatus.FAILURE,
+            message=f"Syntax error: {error_message}",
+            report_path=None,
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error(
+            f"  V1 Auditor: Unexpected error during audit. Error: {e}", exc_info=True
+        )
+        return AuditOutput(
+            status=AuditStatus.FAILURE,
+            message=f"Unexpected error during audit: {str(e)}",
+            report_path=None,
+        )

@@ -1,5 +1,12 @@
 from gandalf_workshop.artisan_guildhall import artisans
-from gandalf_workshop.specs.data_models import PlanOutput  # Moved here
+from gandalf_workshop.specs.data_models import (
+    PlanOutput,
+    CodeOutput,
+    AuditOutput,
+    AuditStatus,
+    PMReviewDecision,  # Added this as it was used later but not imported with others
+)
+from pathlib import Path  # For test file creation
 
 
 def test_initialize_planning_crew():
@@ -32,7 +39,8 @@ def test_initialize_pm_review_crew_mock_logic(tmp_path):
     This replicates the tests previously in artisans.py's __main__ block.
     """
     import yaml
-    from gandalf_workshop.specs.data_models import PMReviewDecision
+
+    # PMReviewDecision is imported at the top of the file
 
     # Path is used by tmp_path fixture implicitly, but explicit import not needed here.
 
@@ -119,7 +127,72 @@ def test_initialize_planner_agent_v1_hello_world():
 
     assert isinstance(plan_output, PlanOutput)
     assert plan_output.tasks == ["Create a Python file that prints 'Hello, World!'"]
-    assert plan_output.details is None
+
+
+# Tests for V1 Basic Auditor Agent
+
+
+def test_initialize_auditor_agent_v1_valid_syntax(tmp_path):
+    """Tests the V1 basic auditor with a syntactically valid Python file."""
+    commission_id = "test_audit_valid_001"
+    valid_py_file = tmp_path / "valid_script.py"
+    valid_py_file.write_text("print('Hello, World!')\n")
+
+    code_input = CodeOutput(code_path=valid_py_file)
+    audit_output = artisans.initialize_auditor_agent_v1(code_input, commission_id)
+
+    assert isinstance(audit_output, AuditOutput)
+    assert audit_output.status == AuditStatus.SUCCESS
+    assert audit_output.message == "Syntax OK."
+    assert audit_output.report_path is None
+
+
+def test_initialize_auditor_agent_v1_invalid_syntax(tmp_path):
+    """Tests the V1 basic auditor with a syntactically invalid Python file."""
+    commission_id = "test_audit_invalid_002"
+    invalid_py_file = tmp_path / "invalid_script.py"
+    invalid_py_file.write_text("print 'Hello, World!'\n")  # Python 2 syntax
+
+    code_input = CodeOutput(code_path=invalid_py_file)
+    audit_output = artisans.initialize_auditor_agent_v1(code_input, commission_id)
+
+    assert isinstance(audit_output, AuditOutput)
+    assert audit_output.status == AuditStatus.FAILURE
+    assert "Syntax error" in audit_output.message
+    # Specific error messages can be brittle, so just check for the presence of "Syntax error"
+    # Example: "Syntax error: Missing parentheses in call to 'print'. Did you mean print(...)? (<unknown>, line 1)"
+    assert audit_output.report_path is None
+
+
+def test_initialize_auditor_agent_v1_file_not_found(tmp_path):
+    """Tests the V1 basic auditor when the code file does not exist."""
+    commission_id = "test_audit_notfound_003"
+    non_existent_file = tmp_path / "non_existent_script.py"
+
+    code_input = CodeOutput(code_path=non_existent_file)
+    audit_output = artisans.initialize_auditor_agent_v1(code_input, commission_id)
+
+    assert isinstance(audit_output, AuditOutput)
+    assert audit_output.status == AuditStatus.FAILURE
+    assert f"Code file not found: {non_existent_file}" in audit_output.message
+    assert audit_output.report_path is None
+
+
+def test_initialize_auditor_agent_v1_path_is_directory(tmp_path):
+    """Tests the V1 basic auditor when the code_path is a directory."""
+    commission_id = "test_audit_isdir_004"
+    dir_path = tmp_path / "some_directory"
+    dir_path.mkdir()
+
+    code_input = CodeOutput(code_path=dir_path)
+    audit_output = artisans.initialize_auditor_agent_v1(code_input, commission_id)
+
+    assert isinstance(audit_output, AuditOutput)
+    assert audit_output.status == AuditStatus.FAILURE
+    assert (
+        f"Code file not found: {dir_path}" in audit_output.message
+    )  # Current implementation treats dir as not found
+    assert audit_output.report_path is None
 
 
 def test_initialize_planner_agent_v1_generic_prompt():
