@@ -73,7 +73,7 @@ class WorkshopManager:
         # 2. Call Coder Agent
         logger.info(f"Workshop Manager: Invoking Coder Agent for '{commission_id}'.")
         commission_specific_work_dir = (
-            Path("gandalf_workshop/commission_work") / commission_id
+            Path("outputs") / commission_id
         )
         # The Coder agent will create this directory if it doesn't exist.
         code_output = initialize_live_coder_agent( # Function call updated
