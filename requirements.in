@@ -30,3 +30,6 @@ chromadb
 # General Utilities
 python-dotenv
 gitpython
+google-generativeai
+together
+mistralai
