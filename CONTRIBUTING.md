@@ -35,7 +35,9 @@ The core of our development is organized into versions (V1, V2, etc.). Each vers
 
 ## Code Style and Quality
 
-*   (To be defined - e.g., Python with Black and Flake8, specific commenting styles)
+*   Our Python code is formatted with Black and linted with Flake8. Please ensure your contributions pass these checks (e.g., by running `make audit`).
+*   **Line Length:** While Flake8 is configured with a specific line length, very long lines (e.g., up to 200 characters) are generally acceptable if they improve readability, especially for comments or string literals. The Flake8 configuration has been updated to reflect this.
+*   **F401 - Unused Imports for Type Hinting:** If an import is flagged by Flake8 with an F401 error (module imported but unused) but the import is necessary for type hinting, you can suppress this specific error by adding a `# noqa: F401` comment to the import line. Please verify that the import is indeed only used for type hinting before suppressing.
 
 ## Questions?
 

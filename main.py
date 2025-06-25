@@ -57,7 +57,7 @@ def main():
         # Initialize WorkshopManager. Consider making max_pm_review_cycles configurable if needed.
         manager = WorkshopManager(max_pm_review_cycles=3)
 
-        success = manager.execute_full_commission_workflow(
+        success = manager.execute_full_commission_workflow(  # noqa: E501
             user_prompt=user_prompt, commission_id=commission_id
         )
 
