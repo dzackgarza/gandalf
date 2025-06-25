@@ -23,4 +23,4 @@ from pathlib import Path
 # in the future, they should be written based on the current `initialize_coder_agent_v1`
 # interface or any future revisions.
 
-pass # Ensures the file is not empty and remains syntactically valid.
+pass  # Ensures the file is not empty and remains syntactically valid.

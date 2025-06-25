@@ -1,6 +1,6 @@
 import pytest
 import shutil
-import logging # Added for caplog.set_level
+import logging  # Added for caplog.set_level
 from pathlib import Path
 from unittest.mock import patch
 
@@ -76,9 +76,7 @@ def test_run_v1_commission_hello_world_success(
     # The Coder agent is expected to create the file. For the unit test,
     # we simulate this by having the mock return a CodeOutput pointing to the expected path
     # and then we create this dummy file for assertion purposes.
-    commission_work_dir = (
-        Path("gandalf_workshop/commission_work") / TEST_COMMISSION_ID
-    )
+    commission_work_dir = Path("gandalf_workshop/commission_work") / TEST_COMMISSION_ID
     # The actual coder agent creates 'main.py' for this plan
     expected_code_filename = "main.py"
     mock_code_path = commission_work_dir / expected_code_filename
@@ -90,7 +88,8 @@ def test_run_v1_commission_hello_world_success(
         f.write("print('Hello, World!')\n")
 
     mock_code_output_instance = CodeOutput(
-        code_path=mock_code_path, message="Mock Coder: Python 'Hello, World!' generated."
+        code_path=mock_code_path,
+        message="Mock Coder: Python 'Hello, World!' generated.",
     )
     MockInitializeCoderV1.return_value = mock_code_output_instance
 
@@ -101,7 +100,9 @@ def test_run_v1_commission_hello_world_success(
     MockInitializeAuditorV1.return_value = mock_audit_output_instance
 
     # --- Run the Commission ---
-    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
+    caplog.set_level(
+        logging.INFO, logger="gandalf_workshop.workshop_manager"
+    )  # Set log level
     result_path = manager.run_v1_commission(HELLO_WORLD_PROMPT, TEST_COMMISSION_ID)
 
     # --- Assertions ---
@@ -139,6 +140,7 @@ def test_run_v1_commission_hello_world_success(
 
     # We need to import re for this
     import re
+
     # Use regex for more flexible matching of the truncated planner log
     # Focusing on the key content due to inconsistencies in exact str representation
     planner_log_pattern = r"Workshop Manager: Planner Agent returned plan:.*?Create a Python file that prints 'Hello, Wor"
@@ -182,9 +184,7 @@ def test_run_v1_commission_audit_failure(
     MockInitializePlannerV1.return_value = mock_plan_instance
 
     # 2. Coder Mock
-    commission_work_dir = (
-        Path("gandalf_workshop/commission_work") / TEST_COMMISSION_ID
-    )
+    commission_work_dir = Path("gandalf_workshop/commission_work") / TEST_COMMISSION_ID
     # For a generic task, the coder agent creates 'task_output.txt'
     expected_code_filename = "task_output.txt"
     mock_code_path = commission_work_dir / expected_code_filename
@@ -209,7 +209,9 @@ def test_run_v1_commission_audit_failure(
     MockInitializeAuditorV1.return_value = mock_audit_output_instance
 
     # --- Run the Commission ---
-    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
+    caplog.set_level(
+        logging.INFO, logger="gandalf_workshop.workshop_manager"
+    )  # Set log level
     with pytest.raises(Exception) as excinfo:
         manager.run_v1_commission(OTHER_PROMPT, TEST_COMMISSION_ID)
 
@@ -273,7 +275,7 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
     Tests V1 commission with a non-"hello world" prompt, with all agent calls mocked
     to ensure the WorkshopManager logic flows correctly.
     """
-    commission_id = "v1_other_prompt_commission" # Use a unique ID for this test
+    commission_id = "v1_other_prompt_commission"  # Use a unique ID for this test
 
     # --- Configure Mocks ---
     # 1. Planner Mock for a generic prompt
@@ -290,7 +292,9 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
     commission_work_dir.mkdir(parents=True, exist_ok=True)
     # Create a dummy file that the Coder agent would have created
     with open(mock_code_path, "w") as f:
-        f.write(f"Content for: {OTHER_PROMPT}\nBased on plan: {[generic_task_description]}")
+        f.write(
+            f"Content for: {OTHER_PROMPT}\nBased on plan: {[generic_task_description]}"
+        )
 
     mock_code_output_instance = CodeOutput(
         code_path=mock_code_path,
@@ -300,7 +304,8 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
 
     # 3. Auditor Mock (successful audit)
     mock_audit_output_instance = AuditOutput(
-        status=AuditStatus.SUCCESS, message="Mock Auditor: Audit passed for generic content."
+        status=AuditStatus.SUCCESS,
+        message="Mock Auditor: Audit passed for generic content.",
     )
     MockInitializeAuditorV1.return_value = mock_audit_output_instance
 
@@ -308,7 +313,9 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
 
     # --- Run the Commission ---
     # Need to use the specific commission_id for this test
-    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
+    caplog.set_level(
+        logging.INFO, logger="gandalf_workshop.workshop_manager"
+    )  # Set log level
     result_path = manager.run_v1_commission(OTHER_PROMPT, commission_id)
 
     # --- Assertions ---
@@ -336,11 +343,10 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
     # 4. Check logs for successful completion
     log_text = caplog.text
     assert (
-        f"===== Starting V1 Workflow for Commission: {commission_id} ====="
-        in log_text
+        f"===== Starting V1 Workflow for Commission: {commission_id} =====" in log_text
     )
     assert (
-        f"Workshop Manager: Coder Agent completed. Code path: {mock_code_path}" # Check part of message
+        f"Workshop Manager: Coder Agent completed. Code path: {mock_code_path}"  # Check part of message
         in log_text
     )
     assert (

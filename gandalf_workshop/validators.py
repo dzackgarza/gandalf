@@ -3,14 +3,17 @@ import re
 from pathlib import Path
 from typing import Tuple, List, Optional
 from radon.visitors import ComplexityVisitor
-from radon.metrics import h_visit_ast # Halstead metrics, could be useful later
-from radon.raw import analyze as analyze_raw # Raw metrics like SLOC, LLOC
+from radon.metrics import h_visit_ast  # Halstead metrics, could be useful later
+from radon.raw import analyze as analyze_raw  # Raw metrics like SLOC, LLOC
+
 
 class CodeStructureValidator:
     MIN_NON_EMPTY_LINES = 10  # Heuristic for non-trivial code
-    MIN_STATEMENTS = 5       # Another heuristic: expecting at least a few logical statements
-    MAX_AVG_COMPLEXITY = 7   # Average cyclomatic complexity per function/method
-    MAX_FUNCTION_COMPLEXITY = 15 # Max cyclomatic complexity for any single function/method
+    MIN_STATEMENTS = 5  # Another heuristic: expecting at least a few logical statements
+    MAX_AVG_COMPLEXITY = 7  # Average cyclomatic complexity per function/method
+    MAX_FUNCTION_COMPLEXITY = (
+        15  # Max cyclomatic complexity for any single function/method
+    )
 
     def __init__(self, code_content: str, filepath: Optional[Path] = None):
         self.code_content = code_content
@@ -18,27 +21,35 @@ class CodeStructureValidator:
         try:
             self.tree = ast.parse(self.code_content)
         except SyntaxError as e:
-            self.tree = None # Will be handled by check_non_trivial or other AST-based checks
+            self.tree = (
+                None  # Will be handled by check_non_trivial or other AST-based checks
+            )
             # self.errors.append(f"Initial AST parsing failed: {e}") # Already handled by syntax audit
-            pass # Syntax errors should be caught by the syntax auditor first.
-        self.filepath = filepath # Optional, mainly for context in messages
+            pass  # Syntax errors should be caught by the syntax auditor first.
+        self.filepath = filepath  # Optional, mainly for context in messages
         self.lines = [line for line in code_content.splitlines()]
         self.errors: List[str] = []
-        self.is_script_intent = True # Default assumption, can be refined if more context is passed
+        self.is_script_intent = (
+            True  # Default assumption, can be refined if more context is passed
+        )
 
         # Basic check: if filepath suggests a specific entry point name like main.py
-        if self.filepath and self.filepath.name.lower() != "main.py" and \
-           self.filepath.name.lower() != "app.py": # Common entry point names
+        if (
+            self.filepath
+            and self.filepath.name.lower() != "main.py"
+            and self.filepath.name.lower() != "app.py"
+        ):  # Common entry point names
             # Could potentially set self.is_script_intent = False if it's clearly a library module
             pass
-
 
     def _is_comment_or_empty(self, line: str) -> bool:
         stripped_line = line.strip()
         return not stripped_line or stripped_line.startswith("#")
 
     def check_non_trivial(self) -> bool:
-        non_empty_lines = [line for line in self.lines if not self._is_comment_or_empty(line)]
+        non_empty_lines = [
+            line for line in self.lines if not self._is_comment_or_empty(line)
+        ]
         if len(non_empty_lines) < self.MIN_NON_EMPTY_LINES:
             self.errors.append(
                 f"Code seems too trivial: less than {self.MIN_NON_EMPTY_LINES} non-empty/non-comment lines "
@@ -51,32 +62,53 @@ class CodeStructureValidator:
             tree = ast.parse(self.code_content)
             statement_count = 0
             for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
-                                     ast.If, ast.For, ast.AsyncFor, ast.While,
-                                     ast.With, ast.AsyncWith, ast.Try, ast.Assign,
-                                     ast.Expr, ast.Return, ast.Raise, ast.Assert)):
+                if isinstance(
+                    node,
+                    (
+                        ast.FunctionDef,
+                        ast.AsyncFunctionDef,
+                        ast.ClassDef,
+                        ast.If,
+                        ast.For,
+                        ast.AsyncFor,
+                        ast.While,
+                        ast.With,
+                        ast.AsyncWith,
+                        ast.Try,
+                        ast.Assign,
+                        ast.Expr,
+                        ast.Return,
+                        ast.Raise,
+                        ast.Assert,
+                    ),
+                ):
                     statement_count += 1
 
             if statement_count < self.MIN_STATEMENTS:
-                 self.errors.append(
+                self.errors.append(
                     f"Code seems too trivial: less than {self.MIN_STATEMENTS} significant AST statements "
                     f"(found {statement_count})."
                 )
-                 return False
+                return False
 
         except SyntaxError as e:
             # This shouldn't happen if syntax audit already passed, but as a safeguard
-            self.errors.append(f"Syntax error during non-trivial check (AST parsing): {e}")
+            self.errors.append(
+                f"Syntax error during non-trivial check (AST parsing): {e}"
+            )
             return False
         return True
 
     def check_entry_point(self) -> bool:
-        if not self.is_script_intent: # If determined not to be a script, skip this check
+        if (
+            not self.is_script_intent
+        ):  # If determined not to be a script, skip this check
             return True
 
         # Regex to find 'if __name__ == "__main__":'
         # Accounts for variations in spacing and quotes.
-        entry_point_pattern = re.compile(r"""
+        entry_point_pattern = re.compile(
+            r"""
             if\s+__name__\s*==\s*                      # if __name__ ==
             (?:
                 "__main__"                             # "__main__"
@@ -84,7 +116,9 @@ class CodeStructureValidator:
                 '__main__'                             # '__main__'
             )
             \s*:                                       # :
-        """, re.VERBOSE)
+        """,
+            re.VERBOSE,
+        )
 
         found_entry_point = False
         for line in self.lines:
@@ -105,29 +139,36 @@ class CodeStructureValidator:
         Returns:
             Tuple[bool, List[str]]: (is_valid, list_of_error_messages)
         """
-        self.errors = [] # Reset errors for this validation run
+        self.errors = []  # Reset errors for this validation run
 
         is_valid = self.check_non_trivial()
         # Only check for entry point if non-trivial check passes,
         # or if script_intent is True (could be a tiny valid script)
-        if self.is_script_intent : # For now, always check entry point if it's a script
-             is_valid = self.check_entry_point() and is_valid # Combine with previous is_valid
+        if self.is_script_intent:  # For now, always check entry point if it's a script
+            is_valid = (
+                self.check_entry_point() and is_valid
+            )  # Combine with previous is_valid
 
         return is_valid, self.errors
 
-def validate_code_structure(code_content: str, filepath: Optional[Path] = None) -> Tuple[bool, List[str]]:
+
+def validate_code_structure(
+    code_content: str, filepath: Optional[Path] = None
+) -> Tuple[bool, List[str]]:
     """
     Convenience function to use the CodeStructureValidator.
     """
     validator = CodeStructureValidator(code_content, filepath)
     return validator.validate()
 
+
 def run_flake8_validation(filepath: Path) -> Tuple[bool, List[str]]:
     """
     Runs flake8 on the given file and returns success/failure and errors.
     """
     import subprocess
-    import logging # Add logging for this function
+    import logging  # Add logging for this function
+
     logger = logging.getLogger(__name__)
 
     if not filepath.exists() or not filepath.is_file():
@@ -153,20 +194,25 @@ def run_flake8_validation(filepath: Path) -> Tuple[bool, List[str]]:
         # This requires flake8 to be installed in the python environment being used.
 
         # Determine the python executable from the current environment
-        python_executable = Path(subprocess.check_output(["which", "python"], text=True).strip())
+        python_executable = Path(
+            subprocess.check_output(["which", "python"], text=True).strip()
+        )
         # If running in .venv, this should point to .venv/bin/python
         # More robust: use sys.executable if this module is guaranteed to run in the target venv
         # For now, this is a common approach.
         # python_executable = ".venv/bin/python" # Less robust if .venv is not in CWD
 
         flake8_command = [
-            str(python_executable), # Use the determined python executable
-            "-m", "flake8",
-            str(filepath)
+            str(python_executable),  # Use the determined python executable
+            "-m",
+            "flake8",
+            str(filepath),
         ]
 
         logger.info(f"Running flake8 command: {' '.join(flake8_command)}")
-        process = subprocess.run(flake8_command, capture_output=True, text=True, check=False) # check=False to handle non-zero exits ourselves
+        process = subprocess.run(
+            flake8_command, capture_output=True, text=True, check=False
+        )  # check=False to handle non-zero exits ourselves
 
         if process.returncode == 0 and not process.stdout.strip():
             # Flake8 found no issues if stdout is empty and return code is 0
@@ -180,7 +226,7 @@ def run_flake8_validation(filepath: Path) -> Tuple[bool, List[str]]:
             # Flake8 outputs errors/warnings to stdout.
             # Stderr might contain other execution errors of flake8 itself.
             errors = process.stdout.strip().splitlines()
-            if process.stderr.strip(): # Log flake8's own errors if any
+            if process.stderr.strip():  # Log flake8's own errors if any
                 logger.warning(f"Flake8 stderr output: {process.stderr.strip()}")
                 # Optionally add stderr to returned errors if it's relevant to code quality
                 # errors.append(f"Flake8 execution error: {process.stderr.strip()}")
@@ -188,17 +234,27 @@ def run_flake8_validation(filepath: Path) -> Tuple[bool, List[str]]:
             # Ensure we return False if there was any output, even if returncode was 0 (e.g. only warnings)
             if errors:
                 return False, errors
-            elif process.returncode != 0: # No stdout, but non-zero exit (less common for flake8)
-                return False, [f"flake8 exited with code {process.returncode} but no specific errors on stdout. Stderr: {process.stderr.strip()}"]
-            else: # Should ideally not be reached if logic above is sound (returncode 0, no stdout = success)
-                 return True, []
+            elif (
+                process.returncode != 0
+            ):  # No stdout, but non-zero exit (less common for flake8)
+                return False, [
+                    f"flake8 exited with code {process.returncode} but no specific errors on stdout. Stderr: {process.stderr.strip()}"
+                ]
+            else:  # Should ideally not be reached if logic above is sound (returncode 0, no stdout = success)
+                return True, []
 
-
-    except FileNotFoundError: # If `python` or `flake8` (if not using -m) isn't found
-        logger.error("flake8 command not found. Ensure flake8 is installed and in PATH or python -m flake8 works.", exc_info=True)
-        return False, ["flake8 execution failed: command not found. Is it installed in the environment?"]
-    except subprocess.CalledProcessError as e: # Should be caught by check=False now
-        logger.error(f"flake8 execution failed with CalledProcessError: {e}", exc_info=True)
+    except FileNotFoundError:  # If `python` or `flake8` (if not using -m) isn't found
+        logger.error(
+            "flake8 command not found. Ensure flake8 is installed and in PATH or python -m flake8 works.",
+            exc_info=True,
+        )
+        return False, [
+            "flake8 execution failed: command not found. Is it installed in the environment?"
+        ]
+    except subprocess.CalledProcessError as e:  # Should be caught by check=False now
+        logger.error(
+            f"flake8 execution failed with CalledProcessError: {e}", exc_info=True
+        )
         errors = e.stdout.strip().splitlines() if e.stdout else []
         if e.stderr:
             errors.extend(e.stderr.strip().splitlines())
@@ -206,5 +262,7 @@ def run_flake8_validation(filepath: Path) -> Tuple[bool, List[str]]:
             errors = [str(e)]
         return False, errors
     except Exception as e:
-        logger.error(f"An unexpected error occurred during flake8 validation: {e}", exc_info=True)
+        logger.error(
+            f"An unexpected error occurred during flake8 validation: {e}", exc_info=True
+        )
         return False, [f"Unexpected error during flake8: {str(e)}"]
