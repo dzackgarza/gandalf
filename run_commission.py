@@ -155,17 +155,19 @@ def main():
             traceback.print_exc()
             failure_report = llm_manager.handle_llm_failure(str(e))
             print(f"LLM Manager failure report: {failure_report}")
-            if not failure_report.get("switch_occurred") and attempt + 1 < MAX_RETRIES:
-                 print("No provider/model switch occurred, but retrying...")
-                 time.sleep(10) # Longer sleep if no switch, could be transient issue
-            elif not failure_report.get("switch_occurred") and attempt + 1 >= MAX_RETRIES:
-                 print("No provider/model switch occurred, and max retries reached for Planner.")
-                 sys.exit("Planner Crew execution failed after multiple retries.")
+
             if attempt + 1 >= MAX_RETRIES:
                 print("Max retries reached for Planner Crew.")
-                sys.exit("Planner Crew execution failed after multiple retries.")
-    else: # Loop finished without break
-        sys.exit("Planner Crew failed after all retries.")
+                break # Exit loop, will be caught by 'else'
+
+            if not failure_report.get("switch_occurred"):
+                print("No provider/model switch occurred, but retrying...")
+                time.sleep(10) # Longer sleep if no switch, could be transient issue
+            # If a switch did occur, loop continues to retry with new config immediately
+
+    else: # Loop finished without break (all retries failed)
+        print("Planner Crew failed after all retries.") # Added print for clarity
+        sys.exit("Planner Crew execution failed after all retries.")
 
 
     # --- Stage 2: Run Coder Crew ---
@@ -201,17 +203,19 @@ def main():
             traceback.print_exc()
             failure_report = llm_manager.handle_llm_failure(str(e))
             print(f"LLM Manager failure report: {failure_report}")
-            if not failure_report.get("switch_occurred") and attempt + 1 < MAX_RETRIES:
-                 print("No provider/model switch occurred, but retrying Coder...")
-                 time.sleep(10)
-            elif not failure_report.get("switch_occurred") and attempt + 1 >= MAX_RETRIES:
-                 print("No provider/model switch occurred, and max retries reached for Coder.")
-                 sys.exit("Coder Crew execution failed after multiple retries.")
+
             if attempt + 1 >= MAX_RETRIES:
                 print("Max retries reached for Coder Crew.")
-                sys.exit("Coder Crew execution failed after multiple retries.")
-    else: # Loop finished without break
-        sys.exit("Coder Crew failed after all retries.")
+                break # Exit loop, will be caught by 'else'
+
+            if not failure_report.get("switch_occurred"):
+                print("No provider/model switch occurred, but retrying Coder...")
+                time.sleep(10)
+            # If a switch did occur, loop continues to retry with new config immediately
+
+    else: # Loop finished without break (all retries failed)
+        print("Coder Crew failed after all retries.") # Added print for clarity
+        sys.exit("Coder Crew execution failed after all retries.")
 
     print("\nCommission generation pipeline completed successfully!")
 
