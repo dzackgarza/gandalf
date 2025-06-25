@@ -1,0 +1,13 @@
+{
+  "commission_id": "pm_crew_test_001",
+  "blueprint_path": "/tmp/pytest-of-swebot/pytest-0/test_initialize_pm_review_crew0/blueprints/pm_crew_test_001/blueprint.yaml",
+  "blueprint_version_reviewed": "0.9",
+  "review_timestamp": "2025-06-25T04:52:52.912710Z",
+  "pm_agent_id": "Mock_PM_Agent_v0.1",
+  "decision": "REVISION_REQUESTED",
+  "rationale": "Mock PM Review: Blueprint needs revision. Summary indicates complexity. Please simplify.",
+  "suggested_focus_areas_for_revision": [
+    "project_summary",
+    "product_specifications.modules"
+  ]
+}
