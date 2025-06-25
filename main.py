@@ -1,5 +1,21 @@
-# Auto-generated main.py for audit purposes
-# It attempts to import and run the main function from the generated app.
+"""
+main.py - The Main Entrance to the Gandalf Workshop
+
+This script serves as the primary command-line interface for interacting with
+the Gandalf Workshop. It's like the front gate where clients arrive to submit
+new commissions. Upon receiving a request (a "prompt"), this script will
+initialize the WorkshopManager and instruct it to begin the process, starting
+with the creation of a Blueprint.
+"""
+
+import argparse
+import uuid
+
+from gandalf_workshop.workshop_manager import WorkshopManager
+
+# Metaphor: This is the main reception desk or commission intake point of the
+# workshop. A client (user) arrives with a request (prompt), and the process
+# begins here.
 
 
 def main():
@@ -53,13 +69,27 @@ def main():
                 )
             )
         else:
-            print(f"No main() or run() function found in gandalf_workshop.app")
-    except ImportError:
-        print(f"Could not import gandalf_workshop.app in main.py")
+            print(
+                (
+                    f"Gandalf Workshop: Commission '{commission_id}' failed or was "
+                    "halted during processing."
+                )
+            )
+
     except Exception as e:
-        print(f"Error running app from main.py: {e}")
+        print(
+            (
+                f"Gandalf Workshop: A critical error occurred while processing "
+                f"commission '{commission_id}': {e}"
+            )
+        )
+        # Add more sophisticated error handling or logging here
+        # For example, log the stack trace
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
-    print("main.py executed for audit.")
-    run()
+    # Metaphor: The workshop doors are opened, ready for new commissions.
+    main()

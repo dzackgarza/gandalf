@@ -1,7 +1,6 @@
 # Core Orchestration & Agent Frameworks
 crewai
 langchain
-langchain-groq
 
 # For Software Development Commissions
 pytest
