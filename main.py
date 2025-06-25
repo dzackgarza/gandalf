@@ -52,16 +52,26 @@ def main():
     )
     # Potentially add more arguments later, e.g., --commission_id,
     # --config_file
+    parser.add_argument(
+        "--unique_id",
+        type=str,
+        default=None,
+        help="A user-specified unique ID for the commission. If not provided, a new one will be generated.",
+    )
 
     args = parser.parse_args()
 
     print("Gandalf Workshop: Received new commission request.")
 
-    # Generate a unique commission ID
-    # Metaphor: A unique serial number is stamped onto the new commission's
-    # docket.
-    commission_id = f"commission_{uuid.uuid4().hex[:8]}"
-    print(f"Gandalf Workshop: Assigning Commission ID: {commission_id}")
+    if args.unique_id:
+        commission_id = args.unique_id
+        print(f"Gandalf Workshop: Using provided Unique ID for Commission: {commission_id}")
+    else:
+        # Generate a unique commission ID
+        # Metaphor: A unique serial number is stamped onto the new commission's
+        # docket.
+        commission_id = f"commission_{uuid.uuid4().hex[:8]}"
+        print(f"Gandalf Workshop: Assigning new Commission ID: {commission_id}")
 
     user_prompt = args.prompt
     print(f'Gandalf Workshop: User Prompt: "{user_prompt}"')

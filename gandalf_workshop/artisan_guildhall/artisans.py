@@ -8,11 +8,13 @@ they start a commission. Each function here would typically set up agents
 (e.g., using CrewAI, AutoGen, LangGraph) with charters, tools, and context.
 """
 
+import os # Import os
 import yaml
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
+import google.generativeai as genai # Import genai
 
 from gandalf_workshop.specs.data_models import (
     PlanOutput,
@@ -113,9 +115,9 @@ def initialize_planner_agent_v1(user_prompt: str, commission_id: str) -> PlanOut
     return plan
 
 
-def initialize_live_planner_agent(user_prompt: str, commission_id: str) -> PlanOutput:
+def initialize_live_planner_agent(user_prompt: str, commission_id: str, llm_config: Optional[Dict[str, Any]] = None) -> PlanOutput:
     """
-    Initializes and runs a live LLM-based Planner Agent using the Gemini API.
+    Initializes and runs a live LLM-based Planner Agent using the configured LLM provider.
 
     Args:
         user_prompt: The initial request from the client.
@@ -130,11 +132,23 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str) -> PlanO
     )
     logger.info(f"  User Prompt: {user_prompt[:100]}...")
 
-    try:
-        api_key = _get_gemini_api_key()
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Updated model name
+    if not llm_config or not llm_config.get("client"):
+        logger.error("  Live Planner: LLM configuration not provided or client missing.")
+        return PlanOutput(tasks=["Error: LLM not configured for planner."], details=None)
 
+    provider_name = llm_config["provider_name"]
+    client = llm_config["client"]
+    # Choose a model - for simplicity, using the first available model.
+    # More sophisticated selection logic could be added here based on model capabilities.
+    selected_model_name = llm_config["models"][0] if llm_config.get("models") else None
+
+    if not selected_model_name:
+        logger.error(f"  Live Planner: No models found in LLM configuration for provider {provider_name}.")
+        return PlanOutput(tasks=[f"Error: No models available for {provider_name} in planner."], details=None)
+
+    logger.info(f"  Live Planner: Using {provider_name} with model {selected_model_name}.")
+
+    try:
         from .prompts import PLANNER_CHARTER_PROMPT
 
         # For Gemini, the prompt needs to be structured carefully.
@@ -145,15 +159,40 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str) -> PlanO
         # Let's try a combined prompt approach.
 
         full_prompt = f"{PLANNER_CHARTER_PROMPT}\n\nUser Request:\n{user_prompt}"
+        raw_plan = ""
 
-        # Alternative: Using system_instruction if the model/SDK version supports it well.
-        # For now, combining into one prompt is safer.
-        # system_instruction = PLANNER_CHARTER_PROMPT
-        # response = model.generate_content(user_prompt, system_instruction=system_instruction)
+        if provider_name == "gemini":
+            # client is genai module itself, model is selected_model_name (string)
+            model_instance = client.GenerativeModel(selected_model_name)
+            response = model_instance.generate_content(full_prompt)
+            raw_plan = response.text
+        elif provider_name == "mistral":
+            # client is MistralClient instance
+            messages = [{"role": "user", "content": full_prompt}] # Use dict for messages
+            # TODO: Select a suitable model from llm_config['models'] for mistral
+            # For now, using the first one.
+            chat_response = client.chat_completions.create(model=selected_model_name, messages=messages) # Corrected call
+            raw_plan = chat_response.choices[0].message.content
+        elif provider_name == "together_ai":
+            # client is Together instance
+            # TODO: Select a suitable model and adapt prompt format if needed
+            # Using a simple completion for now, might need chat completion format.
+            # The prompt format "[INST] {prompt} [/INST]" is common for instruction-tuned models.
+            together_prompt = f"[INST] {full_prompt} [/INST]"
+            response = client.completions.create(
+                prompt=together_prompt,
+                model=selected_model_name,
+                max_tokens=1024, # Arbitrary limit
+                stop=["[/INST]", "</s>"] # Common stop tokens
+            )
+            if response and response.choices:
+                raw_plan = response.choices[0].text.strip()
+            else:
+                raise Exception("Together AI response was empty or malformed.")
+        else:
+            logger.error(f"  Live Planner: Provider {provider_name} not supported for LLM call.")
+            return PlanOutput(tasks=[f"Error: Planner provider {provider_name} not supported."], details=None)
 
-        response = model.generate_content(full_prompt)
-
-        raw_plan = response.text # Gemini API typically returns response in .text
         logger.info(f"  Live Planner: Raw LLM response: {raw_plan[:200]}...")
 
         # Attempt to parse as YAML or JSON, otherwise treat as a single task
@@ -187,16 +226,18 @@ def initialize_live_planner_agent(user_prompt: str, commission_id: str) -> PlanO
 def initialize_live_auditor_agent(
     generated_code: str,
     plan_input: PlanOutput,
-    commission_id: str
+    commission_id: str,
+    llm_config: Optional[Dict[str, Any]] = None, # Added llm_config
 ) -> AuditOutput:
     """
-    Initializes and runs a live LLM-based Auditor Agent using the Gemini API.
+    Initializes and runs a live LLM-based Auditor Agent using the configured LLM provider.
     This agent performs a semantic audit of the code against the plan.
 
     Args:
         generated_code: The string content of the code to be audited.
         plan_input: A PlanOutput object containing the tasks the code should implement.
         commission_id: A unique ID for this commission (for context/logging).
+        llm_config: Configuration for the LLM provider.
 
     Returns:
         An AuditOutput object.
@@ -208,12 +249,22 @@ def initialize_live_auditor_agent(
     logger.info(f"  Auditing code snippet (first 200 chars): {generated_code[:200]}...")
     logger.info(f"  Against plan tasks: {plan_input.tasks}")
 
-    try:
-        api_key = _get_gemini_api_key()
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    if not llm_config or not llm_config.get("client"):
+        logger.error("  Live Auditor: LLM configuration not provided or client missing.")
+        return AuditOutput(status=AuditStatus.FAILURE, message="Auditor Error: LLM not configured.")
 
-        from .prompts import GENERAL_INSPECTOR_CHARTER_PROMPT # Using the general one for now
+    provider_name = llm_config["provider_name"]
+    client = llm_config["client"]
+    selected_model_name = llm_config["models"][0] if llm_config.get("models") else None
+
+    if not selected_model_name:
+        logger.error(f"  Live Auditor: No models found in LLM configuration for provider {provider_name}.")
+        return AuditOutput(status=AuditStatus.FAILURE, message=f"Auditor Error: No models available for {provider_name}.")
+
+    logger.info(f"  Live Auditor: Using {provider_name} with model {selected_model_name}.")
+
+    try:
+        from .prompts import GENERAL_INSPECTOR_CHARTER_PROMPT
 
         formatted_plan = "\n".join(
             f"- {task}" for task in plan_input.tasks
@@ -242,9 +293,32 @@ Example Response Format:
 The code generally implements the feature for adding two numbers. However, it lacks error handling for non-numeric inputs as implicitly required by a robust function.
 AUDIT_RESULT: FAIL
 """
+        llm_response_text = ""
 
-        response = model.generate_content(audit_request_prompt)
-        llm_response_text = response.text
+        if provider_name == "gemini":
+            model_instance = client.GenerativeModel(selected_model_name)
+            response = model_instance.generate_content(audit_request_prompt)
+            llm_response_text = response.text
+        elif provider_name == "mistral":
+            messages = [{"role": "user", "content": audit_request_prompt}] # Use dict for messages
+            chat_response = client.chat_completions.create(model=selected_model_name, messages=messages) # Corrected call
+            llm_response_text = chat_response.choices[0].message.content
+        elif provider_name == "together_ai":
+            together_prompt = f"[INST] {audit_request_prompt} [/INST]"
+            response = client.completions.create(
+                prompt=together_prompt,
+                model=selected_model_name,
+                max_tokens=1024,
+                stop=["[/INST]", "</s>"]
+            )
+            if response and response.choices:
+                llm_response_text = response.choices[0].text.strip()
+            else:
+                raise Exception("Together AI response was empty or malformed.")
+        else:
+            logger.error(f"  Live Auditor: Provider {provider_name} not supported for LLM call.")
+            return AuditOutput(status=AuditStatus.FAILURE, message=f"Auditor Error: Provider {provider_name} not supported.")
+
         logger.info(f"  Live Auditor: Raw LLM response: {llm_response_text[:300]}...")
 
         # Parse the response
@@ -296,9 +370,10 @@ def initialize_live_coder_agent(
     plan_input: PlanOutput,
     commission_id: str,
     output_target_dir: Path,
+    llm_config: Optional[Dict[str, Any]] = None, # Added llm_config
 ) -> CodeOutput:
     """
-    Initializes and runs a live LLM-based Coder Agent using the Gemini API.
+    Initializes and runs a live LLM-based Coder Agent using the configured LLM provider.
 
     Args:
         plan_input: A PlanOutput object containing the tasks.
@@ -318,26 +393,55 @@ def initialize_live_coder_agent(
 
     output_target_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        api_key = _get_gemini_api_key()
-        # genai.configure(api_key=api_key) # Assuming configure is called once, e.g. in planner or at module start
-        # If artisans can be called independently, configure here too or ensure it's idempotent.
-        # For simplicity, let's assume planner (or an earlier call) has configured genai.
-        # If not, uncomment:
-        genai.configure(api_key=api_key) # Ensure genai is configured in each agent
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Updated model name
+    if not llm_config or not llm_config.get("client"):
+        logger.error("  Live Coder: LLM configuration not provided or client missing.")
+        # Return CodeOutput with the directory path and an error message
+        return CodeOutput(code_path=output_target_dir, message="Coder Error: LLM not configured for coder.")
 
+    provider_name = llm_config["provider_name"]
+    client = llm_config["client"]
+    selected_model_name = llm_config["models"][0] if llm_config.get("models") else None
+
+    if not selected_model_name:
+        logger.error(f"  Live Coder: No models found in LLM configuration for provider {provider_name}.")
+        return CodeOutput(code_path=output_target_dir, message=f"Coder Error: No models available for {provider_name} in coder.")
+
+    logger.info(f"  Live Coder: Using {provider_name} with model {selected_model_name}.")
+
+    try:
         from .prompts import CODER_CHARTER_PROMPT
 
         formatted_plan = "\n".join(
             f"- {task}" for task in plan_input.tasks
         )
-        # Combine charter prompt with the plan for Gemini
-        full_prompt = f"{CODER_CHARTER_PROMPT}\n\nUser Request (Plan):\n{formatted_plan}\n\nPlease provide only the Python code as a direct response."
+        full_prompt = f"{CODER_CHARTER_PROMPT}\n\nUser Request (Plan):\n{formatted_plan}\n\nPlease provide only the Python code as a direct response. Do not include any markdown formatting like ```python ... ```."
 
-        response = model.generate_content(full_prompt)
+        generated_code = ""
 
-        generated_code = response.text # Gemini API typically returns response in .text
+        if provider_name == "gemini":
+            model_instance = client.GenerativeModel(selected_model_name)
+            response = model_instance.generate_content(full_prompt)
+            generated_code = response.text
+        elif provider_name == "mistral":
+            messages = [{"role": "user", "content": full_prompt}] # Use dict for messages
+            chat_response = client.chat_completions.create(model=selected_model_name, messages=messages) # Corrected call
+            generated_code = chat_response.choices[0].message.content
+        elif provider_name == "together_ai":
+            together_prompt = f"[INST] {full_prompt} [/INST]"
+            response = client.completions.create(
+                prompt=together_prompt,
+                model=selected_model_name,
+                max_tokens=2048, # Increased max_tokens for code
+                stop=["[/INST]", "</s>", "```"] # Added ``` as a stop token
+            )
+            if response and response.choices:
+                generated_code = response.choices[0].text.strip()
+            else:
+                raise Exception("Together AI response was empty or malformed.")
+        else:
+            logger.error(f"  Live Coder: Provider {provider_name} not supported for LLM call.")
+            return CodeOutput(code_path=output_target_dir, message=f"Coder Error: Provider {provider_name} not supported.")
+
         logger.info(f"  Live Coder: Raw LLM response: {generated_code[:200]}...")
 
         if not generated_code:
