@@ -78,8 +78,16 @@ class WorkshopManager:
         logger.info(f"===== Starting V1 Workflow for Commission: {commission_id} =====")
         logger.info(f"User Prompt: {user_prompt}")
 
+        # Create the base directory for this commission's outputs
+        # This directory (outputs/<commission_id>) will house timestamped subdirectories for each run/artifact set.
+        commission_base_output_dir = Path("outputs") / commission_id
+        commission_base_output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Workshop Manager: Ensured base output directory exists: {commission_base_output_dir}")
+
         if not self.llm_config:
             logger.error(f"Workshop Manager: Cannot run commission '{commission_id}'. No LLM provider configured during initialization.")
+            # Note: Even if LLM is not configured, the base output directory is created,
+            # which might be useful for logging or pre-LLM artifacts in the future.
             raise ConnectionError("LLM provider not available. Commission cannot be processed.")
 
         # 1. Call Planner Agent
