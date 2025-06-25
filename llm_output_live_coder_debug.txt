@@ -1,0 +1,1348 @@
+--- Raw LLM Output for commission_id: sagemath-automorphism-group ---
+Here's the complete Python code for the SageMath script to compute automorphism groups:
+
+```python
+# automorphism_group_computation.sage
+
+def compute_automorphism_group(G):
+    """
+    Compute the automorphism group Aut(G) of a given group G represented as a permutation group.
+
+    This function takes a SageMath group object and returns its automorphism group
+    as a permutation group. It handles various types of input groups including trivial,
+    cyclic, and non-abelian groups.
+
+    Parameters:
+    G (SageMath Group): The input group for which to compute the automorphism group
+
+    Returns:
+    SageMath Permutation Group: The automorphism group Aut(G) as a permutation group
+
+    Examples:
+    >>> # Trivial group
+    >>> G = PermutationGroup([])
+    >>> AutG = compute_automorphism_group(G)
+    >>> AutG.order()
+    1
+
+    >>> # Cyclic group of order 3
+    >>> G = CyclicPermutationGroup(3)
+    >>> AutG = compute_automorphism_group(G)
+    >>> AutG.order()
+    2
+
+    >>> # Symmetric group S3
+    >>> G = SymmetricGroup(3)
+    >>> AutG = compute_automorphism_group(G)
+    >>> AutG.order()
+    6
+    """
+    # Validate group input
+    if not hasattr(G, 'is_group') or not G.is_group():
+        raise ValueError("Input must be a valid SageMath group object")
+
+    # Handle special cases
+    if G.order() == 1:
+        # Trivial group case
+        return PermutationGroup([])
+
+    if G.is_cyclic():
+        # Cyclic group case - automorphism group is Z/nZ*
+        n = G.order()
+        return CyclicPermutationGroup(euler_phi(n))
+
+    # Standardize group representation
+    if not isinstance(G, PermutationGroup):
+        try:
+            G = G.as_permutation_group()
+        except (AttributeError, NotImplementedError):
+            raise ValueError("Group cannot be converted to permutation group representation")
+
+    # Compute automorphism group using SageMath's built-in functions
+    try:
+        AutG = G.automorphism_group()
+        # Ensure the output is a permutation group
+        if not isinstance(AutG, PermutationGroup):
+            AutG = AutG.as_permutation_group()
+        return AutG
+    except (AttributeError, NotImplementedError):
+        # Fallback implementation for groups where SageMath's built-in fails
+        return _compute_automorphism_group_fallback(G)
+
+def _compute_automorphism_group_fallback(G):
+    """
+    Fallback implementation for computing automorphism group when SageMath's built-in fails.
+    This is less efficient but works for more general cases.
+    """
+    from sage.groups.perm_gps.permgroup import PermutationGroup
+    from sage.groups.perm_gps.permgroup_element import PermutationGroupElement
+    from sage.matrix.matrix_space import MatrixSpace
+    from sage.rings.integer_ring import ZZ
+
+    # Get the degree of the permutation group
+    degree = G.degree()
+
+    # Create a list of generators for G
+    gens = G.gens()
+
+    # Create a list of all permutations of the degree
+    all_perms = SymmetricGroup(degree).list()
+
+    # We'll collect automorphisms as permutation matrices
+    automorphisms = []
+
+    # Check each permutation to see if it's an automorphism
+    for sigma in all_perms:
+        is_auto = True
+        # Convert sigma to a permutation matrix
+        sigma_mat = sigma.to_matrix()
+
+        # Check if sigma preserves the group operation
+        for g in gens:
+            for h in gens:
+                # Compute g*h and its image under sigma
+                gh = g * h
+                sigma_gh = sigma_mat * gh.to_matrix() * sigma_mat.inverse()
+
+                # Compute sigma(g)*sigma(h)
+                sigma_g = sigma_mat * g.to_matrix() * sigma_mat.inverse()
+                sigma_h = sigma_mat * h.to_matrix() * sigma_mat.inverse()
+                sigma_g_sigma_h = sigma_g * sigma_h
+
+                if sigma_gh != sigma_g_sigma_h:
+                    is_auto = False
+                    break
+            if not is_auto:
+                break
+
+        if is_auto:
+            # Add the automorphism to our list
+            automorphisms.append(PermutationGroupElement(sigma))
+
+    # Create the automorphism group from the collected automorphisms
+    return PermutationGroup(automorphisms)
+
+def validate_group_input(G):
+    """
+    Validate that the input is a proper SageMath group object.
+
+    Parameters:
+    G: The input to validate
+
+    Returns:
+    bool: True if valid, False otherwise
+
+    Raises:
+    ValueError: If the input is not a valid group
+    """
+    if not hasattr(G, 'is_group'):
+        raise ValueError("Input must be a SageMath group object")
+    if not G.is_group():
+        raise ValueError("Input must be a valid group")
+    return True
+
+def standardize_group_representation(G):
+    """
+    Convert the input group to a standard permutation group representation.
+
+    Parameters:
+    G: The input group
+
+    Returns:
+    PermutationGroup: The group in permutation group form
+
+    Raises:
+    ValueError: If the group cannot be converted to permutation group form
+    """
+    if isinstance(G, PermutationGroup):
+        return G
+
+    try:
+        return G.as_permutation_group()
+    except (AttributeError, NotImplementedError):
+        raise ValueError("Group cannot be converted to permutation group representation")
+
+def format_as_permutation_group(AutG):
+    """
+    Ensure the automorphism group is formatted as a permutation group.
+
+    Parameters:
+    AutG: The automorphism group to format
+
+    Returns:
+    PermutationGroup: The properly formatted permutation group
+    """
+    if isinstance(AutG, PermutationGroup):
+        return AutG
+
+    try:
+        return AutG.as_permutation_group()
+    except (AttributeError, NotImplementedError):
+        raise ValueError("Automorphism group cannot be converted to permutation group")
+
+def generate_documentation():
+    """
+    Generate and return documentation for the automorphism group computation functions.
+
+    Returns:
+    str: Documentation string
+    """
+    doc = """
+    AUTOMORPHISM GROUP COMPUTATION DOCUMENTATION
+
+    This SageMath script provides functionality to compute the automorphism group
+    of arbitrary groups represented as permutation groups.
+
+    MAIN FUNCTION:
+    compute_automorphism_group(G) - Computes Aut(G) for a given group G
+
+    EXAMPLE USAGE:
+
+    1. Trivial group:
+    >>> G = PermutationGroup([])
+    >>> AutG = compute_automorphism_group(G)
+    >>> print(AutG.order())  # Should output 1
+
+    2. Cyclic group of order 5:
+    >>> G = CyclicPermutationGroup(5)
+    >>> AutG = compute_automorphism_group(G)
+    >>> print(AutG.order())  # Should output 4 (since Aut(Z/5Z) = Z/4Z)
+
+    3. Symmetric group S3:
+    >>> G = SymmetricGroup(3)
+    >>> AutG = compute_automorphism_group(G)
+    >>> print(AutG.order())  # Should output 6 (since Aut(S3) = S3)
+
+    NOTES:
+    - The function handles various special cases including trivial groups and cyclic groups
+    - The output is always returned as a permutation group
+    - For very large groups, computation may take significant time
+    """
+    return doc
+
+# Unit tests
+def run_tests():
+    """
+    Run unit tests for the automorphism group computation functions.
+    """
+    print("Running unit tests...")
+
+    # Test 1: Trivial group
+    G1 = PermutationGroup([])
+    AutG1 = compute_automorphism_group(G1)
+    assert AutG1.order() == 1, "Test 1 failed: Trivial group automorphism"
+    print("Test 1 passed: Trivial group")
+
+    # Test 2: Cyclic group of prime order (3)
+    G2 = CyclicPermutationGroup(3)
+    AutG2 = compute_automorphism_group(G2)
+    assert AutG2.order() == 2, "Test 2 failed: Cyclic group of order 3"
+    print("Test 2 passed: Cyclic group of prime order")
+
+    # Test 3: Symmetric group S3
+    G3 = SymmetricGroup(3)
+    AutG3 = compute_automorphism_group(G3)
+    assert AutG3.order() == 6, "Test 3 failed: Symmetric group S3"
+    print("Test 3 passed: Symmetric group S3")
+
+    # Test 4: Dihedral group D4
+    G4 = DihedralGroup(4)
+    AutG4 = compute_automorphism_group(G4)
+    assert AutG4.order() == 8, "Test 4 failed: Dihedral group D4"
+    print("Test 4 passed: Dihedral group D4")
+
+    # Test 5: Non-abelian group of order 8 (quaternion group)
+    G5 = groups.misc.QuaternionGroup()
+    AutG5 = compute_automorphism_group(G5)
+    assert AutG5.order() == 24, "Test 5 failed: Quaternion group"
+    print("Test 5 passed: Quaternion group")
+
+    print("All tests passed successfully!")
+
+# Run tests if executed directly
+if __name__ == "__main__":
+    run_tests()
+    print("\nDocumentation:")
+    print(generate_documentation())
+```
+--- Raw LLM Output for commission_id: cli-calculator ---
+Here's the complete Python code for the command-line calculator application:
+
+```python
+import argparse
+import sys
+
+def add(a, b):
+    """Add two numbers and return the result."""
+    return a + b
+
+def subtract(a, b):
+    """Subtract two numbers and return the result."""
+    return a - b
+
+def multiply(a, b):
+    """Multiply two numbers and return the result."""
+    return a * b
+
+def divide(a, b):
+    """Divide two numbers and return the result."""
+    if b == 0:
+        raise ValueError("Cannot divide by zero")
+    return a / b
+
+def validate_number(value):
+    """Validate if the input can be converted to a float."""
+    try:
+        return float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' is not a valid number")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Command Line Calculator Application",
+        epilog="Example: python calculator.py 5 + 3"
+    )
+
+    parser.add_argument(
+        "operand1",
+        type=validate_number,
+        help="First operand (number)"
+    )
+    parser.add_argument(
+        "operator",
+        choices=['+', '-', '*', '/'],
+        help="Arithmetic operator (+, -, *, /)"
+    )
+    parser.add_argument(
+        "operand2",
+        type=validate_number,
+        help="Second operand (number)"
+    )
+
+    args = parser.parse_args()
+
+    try:
+        if args.operator == '+':
+            result = add(args.operand1, args.operand2)
+        elif args.operator == '-':
+            result = subtract(args.operand1, args.operand2)
+        elif args.operator == '*':
+            result = multiply(args.operand1, args.operand2)
+        elif args.operator == '/':
+            result = divide(args.operand1, args.operand2)
+
+        print(f"Result: {result}")
+
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
+
+And here are the unit tests:
+
+```python
+import unittest
+import sys
+from io import StringIO
+from calculator import add, subtract, multiply, divide, validate_number, main
+
+class TestCalculatorOperations(unittest.TestCase):
+    def test_addition(self):
+        self.assertEqual(add(5, 3), 8)
+        self.assertEqual(add(-1, 1), 0)
+        self.assertEqual(add(-5, -3), -8)
+        self.assertEqual(add(0, 0), 0)
+        self.assertEqual(add(3.5, 2.5), 6.0)
+
+    def test_subtraction(self):
+        self.assertEqual(subtract(5, 3), 2)
+        self.assertEqual(subtract(-1, 1), -2)
+        self.assertEqual(subtract(-5, -3), -2)
+        self.assertEqual(subtract(0, 0), 0)
+        self.assertEqual(subtract(5.5, 2.5), 3.0)
+
+    def test_multiplication(self):
+        self.assertEqual(multiply(5, 3), 15)
+        self.assertEqual(multiply(-1, 1), -1)
+        self.assertEqual(multiply(-5, -3), 15)
+        self.assertEqual(multiply(0, 5), 0)
+        self.assertEqual(multiply(2.5, 4), 10.0)
+
+    def test_division(self):
+        self.assertEqual(divide(6, 3), 2)
+        self.assertEqual(divide(-6, 3), -2)
+        self.assertEqual(divide(-6, -3), 2)
+        self.assertEqual(divide(5, 2), 2.5)
+        self.assertEqual(divide(0, 5), 0)
+
+        with self.assertRaises(ValueError):
+            divide(5, 0)
+
+    def test_validate_number(self):
+        self.assertEqual(validate_number("5"), 5)
+        self.assertEqual(validate_number("-3.5"), -3.5)
+        self.assertEqual(validate_number("0"), 0)
+
+        with self.assertRaises(argparse.ArgumentTypeError):
+            validate_number("abc")
+
+    def test_main_function(self):
+        # Test successful addition
+        sys.argv = ["calculator.py", "5", "+", "3"]
+        captured_output = StringIO()
+        sys.stdout = captured_output
+        main()
+        self.assertEqual(captured_output.getvalue().strip(), "Result: 8.0")
+
+        # Test division by zero
+        sys.argv = ["calculator.py", "5", "/", "0"]
+        captured_error = StringIO()
+        sys.stderr = captured_error
+        with self.assertRaises(SystemExit):
+            main()
+        self.assertIn("Cannot divide by zero", captured_error.getvalue())
+
+        # Test invalid input
+        sys.argv = ["calculator.py", "five", "+", "3"]
+        captured_error = StringIO()
+        sys.stderr = captured_error
+        with self.assertRaises(SystemExit):
+            main()
+        self.assertIn("'five' is not a valid number", captured_error.getvalue())
+
+        # Reset stdout and stderr
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+if __name__ == "__main__":
+    unittest.main()
+```
+--- Raw LLM Output for commission_id: weather-api-script ---
+Here's the Python code for the weather fetch script based on the provided blueprint:
+
+# weather_fetch/main.py
+import os
+from dotenv import load_dotenv
+from api_handler import fetch_weather
+from user_interface import get_city_input, display_weather
+
+def main():
+    """Main function to execute the weather fetch script."""
+    load_dotenv()  # Load environment variables from .env file
+
+    # Get API key from environment variables
+    api_key = os.getenv('WEATHER_API_KEY')
+    if not api_key:
+        print("Error: API key not found. Please set WEATHER_API_KEY in your .env file.")
+        return
+
+    # Get city input from user
+    city = get_city_input()
+
+    try:
+        # Fetch weather data
+        weather_data = fetch_weather(city, api_key)
+
+        # Display weather data
+        display_weather(city, weather_data)
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    main()
+
+# weather_fetch/api_handler.py
+import requests
+
+def fetch_weather(city, api_key):
+    """
+    Fetch weather data for a given city using the OpenWeatherMap API.
+
+    Args:
+        city (str): Name of the city to fetch weather for
+        api_key (str): API key for OpenWeatherMap
+
+    Returns:
+        dict: Parsed JSON response containing weather data
+
+    Raises:
+        ValueError: If the city is not found or API request fails
+    """
+    base_url = "http://api.openweathermap.org/data/2.5/weather"
+    params = {
+        'q': city,
+        'appid': api_key,
+        'units': 'metric'  # Get temperature in Celsius
+    }
+
+    try:
+        response = requests.get(base_url, params=params, timeout=10)
+        response.raise_for_status()  # Raises an HTTPError for bad responses
+
+        data = response.json()
+
+        # Check if city was found
+        if data.get('cod') != 200:
+            raise ValueError(f"City not found: {city}")
+
+        return data
+
+    except requests.exceptions.RequestException as e:
+        raise ValueError(f"Failed to fetch weather data: {str(e)}")
+
+# weather_fetch/user_interface/input_handler.py
+def get_city_input():
+    """
+    Get city name input from the user with basic validation.
+
+    Returns:
+        str: Validated city name
+    """
+    while True:
+        city = input("Enter a city name: ").strip()
+
+        if not city:
+            print("Error: City name cannot be empty. Please try again.")
+            continue
+
+        if not city.replace(' ', '').isalpha():
+            print("Error: City name should only contain letters and spaces. Please try again.")
+            continue
+
+        return city
+
+# weather_fetch/user_interface/display_handler.py
+def display_weather(city, weather_data):
+    """
+    Display weather information in a user-friendly format.
+
+    Args:
+        city (str): Name of the city
+        weather_data (dict): Weather data from API
+    """
+    try:
+        main = weather_data['main']
+        weather = weather_data['weather'][0]
+
+        print(f"\nWeather in {city}:")
+        print("-------------------")
+        print(f"Temperature: {main['temp']}°C")
+        print(f"Feels like: {main['feels_like']}°C")
+        print(f"Humidity: {main['humidity']}%")
+        print(f"Conditions: {weather['description'].capitalize()}")
+        print(f"Wind speed: {weather_data['wind']['speed']} m/s")
+        print("-------------------\n")
+
+    except KeyError as e:
+        raise ValueError(f"Unexpected weather data format: missing {str(e)}")
+
+# weather_fetch/tests/test_api_handler.py
+import pytest
+from unittest.mock import patch
+from api_handler import fetch_weather
+
+@patch('api_handler.requests.get')
+def test_fetch_weather_success(mock_get):
+    """Test successful API response parsing."""
+    # Mock API response
+    mock_response = {
+        "cod": 200,
+        "name": "London",
+        "main": {
+            "temp": 15.5,
+            "feels_like": 14.8,
+            "humidity": 72
+        },
+        "weather": [{
+            "description": "clear sky"
+        }],
+        "wind": {
+            "speed": 3.1
+        }
+    }
+    mock_get.return_value.status_code = 200
+    mock_get.return_value.json.return_value = mock_response
+
+    result = fetch_weather("London", "fake_api_key")
+    assert result == mock_response
+    assert result["name"] == "London"
+    assert "main" in result
+
+@patch('api_handler.requests.get')
+def test_fetch_weather_city_not_found(mock_get):
+    """Test error handling for invalid city name."""
+    mock_response = {"cod": "404", "message": "city not found"}
+    mock_get.return_value.status_code = 404
+    mock_get.return_value.json.return_value = mock_response
+
+    with pytest.raises(ValueError, match="City not found: InvalidCity"):
+        fetch_weather("InvalidCity", "fake_api_key")
+
+@patch('api_handler.requests.get')
+def test_fetch_weather_api_failure(mock_get):
+    """Test error handling for API failure."""
+    mock_get.return_value.status_code = 500
+    mock_get.return_value.raise_for_status.side_effect = Exception("API failure")
+
+    with pytest.raises(ValueError, match="Failed to fetch weather data"):
+        fetch_weather("London", "fake_api_key")
+
+# weather_fetch/tests/test_user_interface.py
+from unittest.mock import patch
+from user_interface.input_handler import get_city_input
+from user_interface.display_handler import display_weather
+
+def test_get_city_input_valid():
+    """Test valid city input."""
+    with patch('builtins.input', return_value='London'):
+        city = get_city_input()
+        assert city == 'London'
+
+def test_get_city_input_empty():
+    """Test empty input handling."""
+    inputs = ['', 'New York']
+    with patch('builtins.input', side_effect=inputs):
+        city = get_city_input()
+        assert city == 'New York'
+
+def test_get_city_input_invalid_chars():
+    """Test input with invalid characters."""
+    inputs = ['New123', 'New York']
+    with patch('builtins.input', side_effect=inputs):
+        city = get_city_input()
+        assert city == 'New York'
+
+def test_display_weather(capsys):
+    """Test display formatting."""
+    test_data = {
+        "name": "London",
+        "main": {
+            "temp": 15.5,
+            "feels_like": 14.8,
+            "humidity": 72
+        },
+        "weather": [{
+            "description": "clear sky"
+        }],
+        "wind": {
+            "speed": 3.1
+        }
+    }
+
+    display_weather("London", test_data)
+    captured = capsys.readouterr()
+    assert "Weather in London" in captured.out
+    assert "Temperature: 15.5°C" in captured.out
+    assert "Humidity: 72%" in captured.out
+    assert "Conditions: Clear sky" in captured.out
+
+# .env.example
+# WEATHER_API_KEY=your_api_key_here
+
+# requirements.txt
+requests==2.31.0
+python-dotenv==1.0.0
+pytest==7.4.0
+--- Raw LLM Output for commission_id: static-web-server ---
+Here's the Python code for the simple web server based on the blueprint:
+
+```python
+import http.server
+import socketserver
+import os
+import mimetypes
+from pathlib import Path
+
+class FileHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory="public", **kwargs)
+
+    def do_GET(self):
+        if self.path == '/':
+            self.path = '/index.html'
+        return super().do_GET()
+
+    def do_HEAD(self):
+        return super().do_HEAD()
+
+    def do_POST(self):
+        self.send_error(405, "Method not allowed")
+
+    def do_PUT(self):
+        self.send_error(405, "Method not allowed")
+
+    def do_DELETE(self):
+        self.send_error(405, "Method not allowed")
+
+    def guess_type(self, path):
+        mime_type, encoding = mimetypes.guess_type(path)
+        if mime_type is None:
+            mime_type = 'application/octet-stream'
+        return mime_type
+
+    def end_headers(self):
+        if self.path.endswith('.html'):
+            self.send_header('Content-Type', 'text/html')
+        elif self.path.endswith('.css'):
+            self.send_header('Content-Type', 'text/css')
+        elif self.path.endswith('.js'):
+            self.send_header('Content-Type', 'application/javascript')
+        elif self.path.endswith('.png'):
+            self.send_header('Content-Type', 'image/png')
+        elif self.path.endswith('.jpg') or self.path.endswith('.jpeg'):
+            self.send_header('Content-Type', 'image/jpeg')
+        super().end_headers()
+
+class RequestRouter(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+
+def run_server(port=8000):
+    # Create public directory if it doesn't exist
+    Path("public").mkdir(exist_ok=True)
+
+    # Create a default index.html if it doesn't exist
+    index_path = Path("public/index.html")
+    if not index_path.exists():
+        with open(index_path, 'w') as f:
+            f.write("<!DOCTYPE html><html><body><h1>Welcome to the Simple Web Server</h1></body></html>")
+
+    handler = FileHandler
+    with RequestRouter(("", port), handler) as httpd:
+        print(f"Serving at http://localhost:{port}")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\nServer stopped")
+
+if __name__ == "__main__":
+    run_server()
+```
+
+And here are the unit tests:
+
+```python
+import unittest
+import threading
+import time
+import requests
+import os
+from pathlib import Path
+from http.server import HTTPServer
+from server import FileHandler, RequestRouter, run_server
+
+class TestWebServer(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Create test files
+        cls.test_dir = Path("public")
+        cls.test_dir.mkdir(exist_ok=True)
+
+        with open(cls.test_dir / "test.html", "w") as f:
+            f.write("<html></html>")
+        with open(cls.test_dir / "test.css", "w") as f:
+            f.write("body {}")
+        with open(cls.test_dir / "test.js", "w") as f:
+            f.write("console.log('test');")
+        with open(cls.test_dir / "test.png", "wb") as f:
+            f.write(b"fake image data")
+
+        # Start server in a separate thread
+        cls.server_thread = threading.Thread(target=run_server, kwargs={"port": 8001})
+        cls.server_thread.daemon = True
+        cls.server_thread.start()
+
+        # Give server time to start
+        time.sleep(1)
+
+    @classmethod
+    def tearDownClass(cls):
+        # Clean up test files
+        for file in cls.test_dir.glob("test.*"):
+            file.unlink()
+
+    def test_html_file_serving(self):
+        response = requests.get("http://localhost:8001/test.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "text/html")
+        self.assertEqual(response.text, "<html></html>")
+
+    def test_css_file_serving(self):
+        response = requests.get("http://localhost:8001/test.css")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "text/css")
+        self.assertEqual(response.text, "body {}")
+
+    def test_js_file_serving(self):
+        response = requests.get("http://localhost:8001/test.js")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "application/javascript")
+        self.assertEqual(response.text, "console.log('test');")
+
+    def test_png_file_serving(self):
+        response = requests.get("http://localhost:8001/test.png")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "image/png")
+        self.assertEqual(response.content, b"fake image data")
+
+    def test_404_response(self):
+        response = requests.get("http://localhost:8001/nonexistent.html")
+        self.assertEqual(response.status_code, 404)
+
+    def test_head_request(self):
+        response = requests.head("http://localhost:8001/test.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "text/html")
+        self.assertEqual(response.text, "")
+
+    def test_unsupported_methods(self):
+        methods = ["POST", "PUT", "DELETE"]
+        for method in methods:
+            response = requests.request(method, "http://localhost:8000/test.html")
+            self.assertEqual(response.status_code, 405)
+
+    def test_concurrent_requests(self):
+        def make_request():
+            return requests.get("http://localhost:8001/test.html")
+
+        threads = []
+        results = []
+
+        for _ in range(10):
+            t = threading.Thread(target=lambda: results.append(make_request()))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        for result in results:
+            self.assertEqual(result.status_code, 200)
+
+if __name__ == "__main__":
+    unittest.main()
+```
+--- Raw LLM Output for commission_id: gui-calculator-streamlit ---
+Here's the Python code for the Streamlit GUI Calculator Application:
+
+```python
+import streamlit as st
+
+def calculate(operation, num1, num2):
+    try:
+        if operation == "+":
+            return num1 + num2
+        elif operation == "-":
+            return num1 - num2
+        elif operation == "*":
+            return num1 * num2
+        elif operation == "/":
+            if num2 == 0:
+                raise ValueError("Division by zero")
+            return num1 / num2
+    except Exception as e:
+        raise ValueError(f"Error in calculation: {str(e)}")
+
+def main():
+    st.set_page_config(page_title="Streamlit Calculator", layout="centered")
+
+    # Custom CSS for styling
+    st.markdown("""
+    <style>
+        .stButton>button {
+            width: 100%;
+            height: 60px;
+            font-size: 20px;
+            margin: 5px;
+        }
+        .display {
+            font-size: 24px;
+            height: 60px;
+            text-align: right;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .calculator-container {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.title("Streamlit Calculator")
+
+    # Initialize session state
+    if 'current_input' not in st.session_state:
+        st.session_state.current_input = "0"
+    if 'previous_input' not in st.session_state:
+        st.session_state.previous_input = ""
+    if 'operation' not in st.session_state:
+        st.session_state.operation = None
+    if 'reset_input' not in st.session_state:
+        st.session_state.reset_input = False
+
+    # Display screen
+    st.markdown(
+        f'<div class="display">{st.session_state.current_input}</div>',
+        unsafe_allow_html=True
+    )
+
+    # Button layout
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if st.button("7"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "7"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "7"
+                else:
+                    st.session_state.current_input += "7"
+
+        if st.button("4"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "4"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "4"
+                else:
+                    st.session_state.current_input += "4"
+
+        if st.button("1"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "1"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "1"
+                else:
+                    st.session_state.current_input += "1"
+
+        if st.button("C"):
+            st.session_state.current_input = "0"
+            st.session_state.previous_input = ""
+            st.session_state.operation = None
+
+    with col2:
+        if st.button("8"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "8"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "8"
+                else:
+                    st.session_state.current_input += "8"
+
+        if st.button("5"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "5"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "5"
+                else:
+                    st.session_state.current_input += "5"
+
+        if st.button("2"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "2"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "2"
+                else:
+                    st.session_state.current_input += "2"
+
+        if st.button("0"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "0"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input != "0":
+                    st.session_state.current_input += "0"
+
+    with col3:
+        if st.button("9"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "9"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "9"
+                else:
+                    st.session_state.current_input += "9"
+
+        if st.button("6"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "6"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "6"
+                else:
+                    st.session_state.current_input += "6"
+
+        if st.button("3"):
+            if st.session_state.reset_input:
+                st.session_state.current_input = "3"
+                st.session_state.reset_input = False
+            else:
+                if st.session_state.current_input == "0":
+                    st.session_state.current_input = "3"
+                else:
+                    st.session_state.current_input += "3"
+
+        if st.button("="):
+            if st.session_state.operation and st.session_state.previous_input:
+                try:
+                    num1 = float(st.session_state.previous_input)
+                    num2 = float(st.session_state.current_input)
+                    result = calculate(st.session_state.operation, num1, num2)
+                    st.session_state.current_input = str(result)
+                    st.session_state.previous_input = ""
+                    st.session_state.operation = None
+                    st.session_state.reset_input = True
+                except ValueError as e:
+                    st.session_state.current_input = "Error"
+                    st.session_state.previous_input = ""
+                    st.session_state.operation = None
+                    st.session_state.reset_input = True
+                    st.error(str(e))
+
+    with col4:
+        if st.button("+"):
+            st.session_state.operation = "+"
+            st.session_state.previous_input = st.session_state.current_input
+            st.session_state.current_input = "0"
+            st.session_state.reset_input = False
+
+        if st.button("-"):
+            st.session_state.operation = "-"
+            st.session_state.previous_input = st.session_state.current_input
+            st.session_state.current_input = "0"
+            st.session_state.reset_input = False
+
+        if st.button("*"):
+            st.session_state.operation = "*"
+            st.session_state.previous_input = st.session_state.current_input
+            st.session_state.current_input = "0"
+            st.session_state.reset_input = False
+
+        if st.button("/"):
+            st.session_state.operation = "/"
+            st.session_state.previous_input = st.session_state.current_input
+            st.session_state.current_input = "0"
+            st.session_state.reset_input = False
+
+if __name__ == "__main__":
+    main()
+```
+
+And here's the test file (test_calculator.py):
+
+```python
+import pytest
+from calculator import calculate
+
+def test_addition():
+    assert calculate("+", 2, 3) == 5
+    assert calculate("+", -1, 1) == 0
+    assert calculate("+", 0, 0) == 0
+
+def test_subtraction():
+    assert calculate("-", 5, 3) == 2
+    assert calculate("-", 10, -5) == 15
+    assert calculate("-", 0, 0) == 0
+
+def test_multiplication():
+    assert calculate("*", 3, 4) == 12
+    assert calculate("*", -2, 5) == -10
+    assert calculate("*", 0, 5) == 0
+
+def test_division():
+    assert calculate("/", 10, 2) == 5
+    assert calculate("/", 9, 3) == 3
+    assert calculate("/", 5, 2) == 2.5
+
+def test_division_by_zero():
+    with pytest.raises(ValueError):
+        calculate("/", 5, 0)
+
+def test_invalid_operation():
+    with pytest.raises(ValueError):
+        calculate("^", 2, 3)
+
+def test_sequential_operations():
+    # Test addition followed by multiplication
+    result1 = calculate("+", 2, 3)
+    result2 = calculate("*", result1, 4)
+    assert result2 == 20
+
+    # Test subtraction followed by division
+    result1 = calculate("-", 10, 5)
+    result2 = calculate("/", result1, 2)
+    assert result2 == 2.5
+```
+--- Raw LLM Output for commission_id: sagemath-automorphism-group ---
+Here's the complete Python code for the SageMath script to compute automorphism groups:
+
+```python
+# automorphism_group_computation.sage
+
+"""
+SageMath Script for Computing Automorphism Groups of Permutation Groups
+
+This script computes the automorphism group Aut(G) of an arbitrary group G
+represented as a permutation group. It includes input validation, computation,
+and output formatting functionalities.
+"""
+
+from sage.all import *
+from sage.groups.perm_gps.permgroup import PermutationGroup
+from sage.groups.perm_gps.automorphism_group import AutomorphismGroup
+
+def validate_input_group(G):
+    """
+    Validate the input group to ensure it's a valid permutation group in SageMath.
+
+    Args:
+        G: Input group to be validated
+
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    try:
+        if not isinstance(G, PermutationGroup):
+            return False
+        if G.order() == 0:
+            return False
+        return True
+    except (AttributeError, TypeError):
+        return False
+
+def standardize_group_representation(G):
+    """
+    Convert the input group into a standard form suitable for computation.
+
+    Args:
+        G: Input permutation group
+
+    Returns:
+        PermutationGroup: Standardized group representation
+    """
+    if not validate_input_group(G):
+        raise ValueError("Invalid input group")
+
+    # Convert to permutation group if it's not already
+    if not isinstance(G, PermutationGroup):
+        try:
+            G = PermutationGroup(G)
+        except Exception as e:
+            raise ValueError(f"Could not convert to permutation group: {str(e)}")
+
+    # Return the group in standard form
+    return G
+
+def compute_automorphism_group(G):
+    """
+    Compute the automorphism group of the given permutation group G.
+
+    Args:
+        G: Input permutation group
+
+    Returns:
+        AutomorphismGroup: The automorphism group of G
+    """
+    G = standardize_group_representation(G)
+
+    try:
+        # Compute the automorphism group using SageMath's built-in function
+        aut_group = AutomorphismGroup(G)
+        return aut_group
+    except Exception as e:
+        raise RuntimeError(f"Failed to compute automorphism group: {str(e)}")
+
+def format_automorphism_group(aut_group, format_type='permutations'):
+    """
+    Format the automorphism group for output.
+
+    Args:
+        aut_group: Computed automorphism group
+        format_type: Output format ('permutations', 'structure', or 'both')
+
+    Returns:
+        str: Formatted output string
+    """
+    if format_type == 'permutations':
+        return str(aut_group.gens())
+    elif format_type == 'structure':
+        return str(aut_group.structure_description())
+    elif format_type == 'both':
+        return f"Generators: {aut_group.gens()}\nStructure: {aut_group.structure_description()}"
+    else:
+        raise ValueError("Invalid format type. Choose 'permutations', 'structure', or 'both'")
+
+def generate_documentation():
+    """
+    Generate documentation and usage examples for the script.
+
+    Returns:
+        str: Documentation string
+    """
+    doc = """
+    SageMath Automorphism Group Computation Script
+
+    This script computes the automorphism group Aut(G) of a permutation group G.
+
+    Usage Examples:
+
+    1. Computing automorphism group of a cyclic group:
+    sage: G = PermutationGroup([[(1,2,3,4)]])
+    sage: aut_group = compute_automorphism_group(G)
+    sage: print(format_automorphism_group(aut_group))
+
+    2. Computing automorphism group of a symmetric group:
+    sage: G = SymmetricGroup(3)
+    sage: aut_group = compute_automorphism_group(G)
+    sage: print(format_automorphism_group(aut_group, 'structure'))
+
+    Algorithm Notes:
+    - The script uses SageMath's built-in AutomorphismGroup function
+    - Input must be a valid permutation group
+    - For large groups, computation may take significant time
+
+    Limitations:
+    - Performance may degrade for very large groups
+    - Some exotic group representations may not be handled
+    """
+    return doc
+
+def main():
+    """
+    Main function to demonstrate the script's functionality.
+    """
+    print(generate_documentation())
+
+    # Example 1: Cyclic group of order 4
+    print("\nExample 1: Cyclic group of order 4")
+    G1 = PermutationGroup([[(1,2,3,4)]])
+    try:
+        aut1 = compute_automorphism_group(G1)
+        print(format_automorphism_group(aut1, 'both'))
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+    # Example 2: Symmetric group S3
+    print("\nExample 2: Symmetric group S3")
+    G2 = SymmetricGroup(3)
+    try:
+        aut2 = compute_automorphism_group(G2)
+        print(format_automorphism_group(aut2, 'both'))
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+    # Example 3: Trivial group
+    print("\nExample 3: Trivial group")
+    G3 = PermutationGroup([])
+    try:
+        aut3 = compute_automorphism_group(G3)
+        print(format_automorphism_group(aut3, 'both'))
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+if __name__ == "__main__":
+    main()
+```
+
+And here's the corresponding test file:
+
+```python
+# test_automorphism_group_computation.py
+
+"""
+Unit tests for the automorphism group computation script
+"""
+
+import unittest
+from sage.all import *
+from automorphism_group_computation import (
+    validate_input_group,
+    standardize_group_representation,
+    compute_automorphism_group,
+    format_automorphism_group
+)
+
+class TestAutomorphismGroupComputation(unittest.TestCase):
+    def setUp(self):
+        # Test groups
+        self.cyclic4 = PermutationGroup([[(1,2,3,4)]])
+        self.symmetric3 = SymmetricGroup(3)
+        self.trivial = PermutationGroup([])
+        self.dihedral3 = PermutationGroup([[(1,2,3)], [(1,2)]])
+        self.invalid_group = "not a group"
+
+    def test_validate_input_group(self):
+        self.assertTrue(validate_input_group(self.cyclic4))
+        self.assertTrue(validate_input_group(self.symmetric3))
+        self.assertTrue(validate_input_group(self.trivial))
+        self.assertFalse(validate_input_group(self.invalid_group))
+
+    def test_standardize_group_representation(self):
+        # Test valid groups
+        self.assertIsInstance(standardize_group_representation(self.cyclic4), PermutationGroup)
+        self.assertIsInstance(standardize_group_representation(self.symmetric3), PermutationGroup)
+
+        # Test invalid group
+        with self.assertRaises(ValueError):
+            standardize_group_representation(self.invalid_group)
+
+    def test_compute_automorphism_group(self):
+        # Test cyclic group of order 4 (should have automorphism group of order 2)
+        aut_cyclic4 = compute_automorphism_group(self.cyclic4)
+        self.assertEqual(aut_cyclic4.order(), 2)
+
+        # Test symmetric group S3 (should have automorphism group of order 6)
+        aut_symmetric3 = compute_automorphism_group(self.symmetric3)
+        self.assertEqual(aut_symmetric3.order(), 6)
+
+        # Test trivial group (should have automorphism group of order 1)
+        aut_trivial = compute_automorphism_group(self.trivial)
+        self.assertEqual(aut_trivial.order(), 1)
+
+        # Test dihedral group D3 (should have automorphism group of order 6)
+        aut_dihedral3 = compute_automorphism_group(self.dihedral3)
+        self.assertEqual(aut_dihedral3.order(), 6)
+
+    def test_format_automorphism_group(self):
+        aut_group = compute_automorphism_group(self.cyclic4)
+
+        # Test permutations format
+        perm_format = format_automorphism_group(aut_group, 'permutations')
+        self.assertIn("(", perm_format)
+
+        # Test structure format
+        struct_format = format_automorphism_group(aut_group, 'structure')
+        self.assertIn("Cyclic", struct_format or "Abelian", struct_format)
+
+        # Test both format
+        both_format = format_automorphism_group(aut_group, 'both')
+        self.assertIn("Generators:", both_format)
+        self.assertIn("Structure:", both_format)
+
+        # Test invalid format
+        with self.assertRaises(ValueError):
+            format_automorphism_group(aut_group, 'invalid_format')
+
+if __name__ == '__main__':
+    unittest.main()
+```

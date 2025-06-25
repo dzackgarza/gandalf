@@ -1,112 +1,101 @@
-# calculator/arithmetic_operations.py
-def add(x, y):
-    """Adds two numbers."""
-    return x + y
+import sys
 
-def subtract(x, y):
-    """Subtracts two numbers."""
-    return x - y
+class ArithmeticOperations:
+    """Handles all arithmetic operations for the calculator."""
 
-def multiply(x, y):
-    """Multiplies two numbers."""
-    return x * y
+    @staticmethod
+    def add(a: float, b: float) -> float:
+        """Add two numbers and return the result."""
+        return a + b
 
-def divide(x, y):
-    """Divides two numbers; handles division by zero."""
-    if y == 0:
-        raise ZeroDivisionError("Division by zero is not allowed.")
-    return x / y
+    @staticmethod
+    def subtract(a: float, b: float) -> float:
+        """Subtract two numbers and return the result."""
+        return a - b
 
-# calculator/input_output.py
-def parse_input(input_str):
-    """Parses user input, handles invalid input."""
-    try:
-        parts = input_str.split()
-        if len(parts) != 3:
-            raise ValueError("Invalid input format. Use 'num1 operator num2'.")
-        num1 = float(parts[0])
-        operator = parts[1]
-        num2 = float(parts[2])
-        return num1, operator, num2
-    except ValueError as e:
-        raise ValueError(f"Invalid input: {e}")
+    @staticmethod
+    def multiply(a: float, b: float) -> float:
+        """Multiply two numbers and return the result."""
+        return a * b
 
+    @staticmethod
+    def divide(a: float, b: float) -> float:
+        """Divide two numbers and return the result."""
+        if b == 0:
+            raise ValueError("Cannot divide by zero")
+        return a / b
 
-def format_output(result):
-    """Formats and displays results clearly."""
-    return f"Result: {result}"
+class UserInterface:
+    """Handles all user interactions for the calculator."""
 
-# calculator/error_handling.py
-def handle_exception(e):
-    """Handles exceptions gracefully."""
-    if isinstance(e, ZeroDivisionError):
-        return "Error: Division by zero."
-    elif isinstance(e, ValueError):
-        return f"Error: {e}"
-    else:
-        return f"An unexpected error occurred: {e}"
+    def __init__(self):
+        self.operations = ArithmeticOperations()
 
+    def display_welcome(self):
+        """Display welcome message and instructions."""
+        print("Welcome to CLI Calculator!")
+        print("Available operations: +, -, *, /")
+        print("Enter 'quit' to exit the application.\n")
 
-# calculator/cli_calculator.py
-import argparse
-from arithmetic_operations import add, subtract, multiply, divide
-from input_output import parse_input, format_output
-from error_handling import handle_exception
+    def get_user_input(self) -> tuple:
+        """Get user input for calculation and return the operation and numbers."""
+        while True:
+            user_input = input("Enter calculation (e.g., 2 + 3): ").strip()
+
+            if user_input.lower() == 'quit':
+                sys.exit("Goodbye!")
+
+            try:
+                parts = user_input.split()
+                if len(parts) != 3:
+                    raise ValueError("Invalid input format")
+
+                num1 = float(parts[0])
+                operator = parts[1]
+                num2 = float(parts[2])
+
+                if operator not in ['+', '-', '*', '/']:
+                    raise ValueError("Invalid operator")
+
+                return operator, num1, num2
+
+            except ValueError as e:
+                print(f"Error: {e}. Please try again.")
+                print("Example format: 2 + 3 or 5.5 * 2.1")
+
+    def perform_calculation(self, operator: str, num1: float, num2: float) -> float:
+        """Perform the calculation based on the operator and return the result."""
+        try:
+            if operator == '+':
+                return self.operations.add(num1, num2)
+            elif operator == '-':
+                return self.operations.subtract(num1, num2)
+            elif operator == '*':
+                return self.operations.multiply(num1, num2)
+            elif operator == '/':
+                return self.operations.divide(num1, num2)
+        except ValueError as e:
+            print(f"Error: {e}")
+            return None
+
+    def display_result(self, result: float):
+        """Display the result of the calculation."""
+        if result is not None:
+            print(f"Result: {result}\n")
+
+    def run(self):
+        """Main loop for the calculator application."""
+        self.display_welcome()
+
+        while True:
+            operator, num1, num2 = self.get_user_input()
+            result = self.perform_calculation(operator, num1, num2)
+            self.display_result(result)
 
 def main():
-    parser = argparse.ArgumentParser(description="A simple CLI calculator.")
-    parser.add_argument("expression", help="Arithmetic expression (e.g., 10 + 20)")
-    args = parser.parse_args()
-
-    try:
-        num1, operator, num2 = parse_input(args.expression)
-        if operator == '+':
-            result = add(num1, num2)
-        elif operator == '-':
-            result = subtract(num1, num2)
-        elif operator == '*':
-            result = multiply(num1, num2)
-        elif operator == '/':
-            result = divide(num1, num2)
-        else:
-            raise ValueError("Invalid operator.")
-        print(format_output(result))
-    except Exception as e:
-        print(handle_exception(e))
+    """Entry point for the calculator application."""
+    calculator = UserInterface()
+    calculator.run()
 
 if __name__ == "__main__":
     main()
-
-
-# calculator/test_calculator.py
-import pytest
-from arithmetic_operations import add, subtract, multiply, divide
-from input_output import parse_input
-from cli_calculator import main
-
-def test_addition():
-    assert add(2, 3) == 5
-
-def test_subtraction():
-    assert subtract(5, 2) == 3
-
-def test_multiplication():
-    assert multiply(4, 5) == 20
-
-def test_division():
-    assert divide(10, 2) == 5
-    with pytest.raises(ZeroDivisionError):
-        divide(10, 0)
-
-def test_parse_input():
-    assert parse_input("2 + 3") == (2.0, "+", 3.0)
-    with pytest.raises(ValueError):
-        parse_input("2 + 3 + 4")
-    with pytest.raises(ValueError):
-        parse_input("abc + 3")
-
-
-#To run the tests:
-# 1. Save the files above into folders: calculator/arithmetic_operations.py, calculator/input_output.py, calculator/error_handling.py, calculator/cli_calculator.py, calculator/test_calculator.py
-# 2. Navigate to the calculator directory in your terminal.
-# 3. Run: pytest
