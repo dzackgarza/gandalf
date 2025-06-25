@@ -1,5 +1,6 @@
 import pytest
 import shutil
+import logging # Added for caplog.set_level
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,7 +59,7 @@ def test_run_v1_commission_hello_world_success(
     MockInitializeCoderV1,
     MockInitializePlannerV1,
     manager,
-    capsys,
+    caplog,  # Changed from capsys
 ):
     """
     Tests the V1 commission workflow for a 'hello world' prompt,
@@ -100,6 +101,7 @@ def test_run_v1_commission_hello_world_success(
     MockInitializeAuditorV1.return_value = mock_audit_output_instance
 
     # --- Run the Commission ---
+    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
     result_path = manager.run_v1_commission(HELLO_WORLD_PROMPT, TEST_COMMISSION_ID)
 
     # --- Assertions ---
@@ -126,39 +128,37 @@ def test_run_v1_commission_hello_world_success(
     )
 
     # 4. Check logs
-    captured = capsys.readouterr()
+    log_text = caplog.text
     assert (
         f"===== Starting V1 Workflow for Commission: {TEST_COMMISSION_ID} ====="
-        in captured.out
+        in log_text
     )
-    assert "Workshop Manager: Invoking Planner Agent" in captured.out
-    assert "Workshop Manager: Invoking Coder Agent" in captured.out
-    assert "Workshop Manager: Invoking Auditor Agent" in captured.out
+    assert "Workshop Manager: Invoking Planner Agent" in log_text
+    assert "Workshop Manager: Invoking Coder Agent" in log_text
+    assert "Workshop Manager: Invoking Auditor Agent" in log_text
 
+    # We need to import re for this
     import re
-
     # Use regex for more flexible matching of the truncated planner log
     # Focusing on the key content due to inconsistencies in exact str representation
     planner_log_pattern = r"Workshop Manager: Planner Agent returned plan:.*?Create a Python file that prints 'Hello, Wor"
-    # We need to import re for this
-    import re
     assert re.search(
-        planner_log_pattern, captured.out
-    ), f"Expected planner log pattern not found in output. Pattern: {planner_log_pattern}\nOutput: {captured.out}"
+        planner_log_pattern, log_text
+    ), f"Expected planner log pattern not found in output. Pattern: {planner_log_pattern}\nOutput: {log_text}"
 
     # Check Coder agent completion log
     assert (
         f"Workshop Manager: Coder Agent completed. Code path: {mock_code_output_instance.code_path}, Message: {mock_code_output_instance.message}"
-        in captured.out
+        in log_text
     )
     # Check Auditor agent reporting log
     assert (
         f"Workshop Manager: Auditor Agent reported: {mock_audit_output_instance.status} - {mock_audit_output_instance.message}"
-        in captured.out
+        in log_text
     )
     assert (
         f"===== V1 Workflow for Commission: {TEST_COMMISSION_ID} Completed Successfully ====="
-        in captured.out
+        in log_text
     )
 
 
@@ -170,7 +170,7 @@ def test_run_v1_commission_audit_failure(
     MockInitializeCoderV1,
     MockInitializePlannerV1,
     manager,
-    capsys,
+    caplog,  # Changed from capsys
 ):
     """
     Tests the V1 commission workflow where the auditor reports a failure.
@@ -206,7 +206,10 @@ def test_run_v1_commission_audit_failure(
     )
     MockInitializeAuditorV1.return_value = mock_audit_output_instance
 
+    MockInitializeAuditorV1.return_value = mock_audit_output_instance
+
     # --- Run the Commission ---
+    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
     with pytest.raises(Exception) as excinfo:
         manager.run_v1_commission(OTHER_PROMPT, TEST_COMMISSION_ID)
 
@@ -235,24 +238,24 @@ def test_run_v1_commission_audit_failure(
     )
 
     # 5. Check logs
-    captured = capsys.readouterr()
+    log_text = caplog.text
     assert (
         f"Workshop Manager: Commission '{TEST_COMMISSION_ID}' failed audit. Reason: {mock_audit_failure_message}"
-        in captured.out
+        in log_text
     )
     # Check Coder agent completion log
     assert (
         f"Workshop Manager: Coder Agent completed. Code path: {mock_code_output_instance.code_path}, Message: {mock_code_output_instance.message}"
-        in captured.out
+        in log_text
     )
     # Check Auditor agent reporting log - it should show failure
     assert (
         f"Workshop Manager: Auditor Agent reported: {mock_audit_output_instance.status} - {mock_audit_output_instance.message}"
-        in captured.out
+        in log_text
     )
     assert (
         f"===== V1 Workflow for Commission: {TEST_COMMISSION_ID} Completed Successfully ====="
-        not in captured.out
+        not in log_text
     )
 
 
@@ -264,7 +267,7 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
     MockInitializeCoderV1,
     MockInitializePlannerV1,
     manager,
-    capsys,
+    caplog,  # Changed from capsys
 ):
     """
     Tests V1 commission with a non-"hello world" prompt, with all agent calls mocked
@@ -301,8 +304,11 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
     )
     MockInitializeAuditorV1.return_value = mock_audit_output_instance
 
+    MockInitializeAuditorV1.return_value = mock_audit_output_instance
+
     # --- Run the Commission ---
     # Need to use the specific commission_id for this test
+    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
     result_path = manager.run_v1_commission(OTHER_PROMPT, commission_id)
 
     # --- Assertions ---
@@ -328,22 +334,22 @@ def test_run_v1_commission_other_prompt_success_mocked_agents(
     )
 
     # 4. Check logs for successful completion
-    captured = capsys.readouterr()
+    log_text = caplog.text
     assert (
         f"===== Starting V1 Workflow for Commission: {commission_id} ====="
-        in captured.out
+        in log_text
     )
     assert (
         f"Workshop Manager: Coder Agent completed. Code path: {mock_code_path}" # Check part of message
-        in captured.out
+        in log_text
     )
     assert (
         f"Workshop Manager: Auditor Agent reported: {AuditStatus.SUCCESS} - Mock Auditor: Audit passed for generic content."
-        in captured.out
+        in log_text
     )
     assert (
         f"===== V1 Workflow for Commission: {commission_id} Completed Successfully ====="
-        in captured.out
+        in log_text
     )
 
     # Cleanup for this specific test's directory if not covered by global fixture

@@ -2,6 +2,7 @@ import pytest
 import shutil
 import subprocess
 import sys
+import logging # Added for caplog.set_level
 from pathlib import Path
 # from unittest.mock import patch, MagicMock # Not needed for true E2E if not mocking planner
 
@@ -47,7 +48,7 @@ def test_e2e_hello_world_generation(
     manager_v1,
     unique_commission_id,
     auto_cleanup_commission_dir,
-    capsys,
+    caplog,  # Changed from capsys
 ):
     """
     Tests the full E2E V1 workflow for a 'hello world' prompt.
@@ -59,7 +60,10 @@ def test_e2e_hello_world_generation(
     expected_code_content = 'print("Hello, World!")\n'  # Indentation fixed
     expected_output_message = "Hello, World!\n"
 
+    expected_output_message = "Hello, World!\n"
+
     # Run the commission
+    caplog.set_level(logging.INFO, logger="gandalf_workshop.workshop_manager") # Set log level
     result_path = manager_v1.run_v1_commission(user_prompt, unique_commission_id)
 
     # Assertions
@@ -98,33 +102,33 @@ def test_e2e_hello_world_generation(
 
 
     # 4. Check logs for key messages (Planner, Coder, Auditor success)
-    captured = capsys.readouterr()
+    log_text = caplog.text
     assert (
         f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
-        in captured.out
+        in log_text
     )
     # Check for planner log (actual planner is used)
     # Example: "Workshop Manager: Planner Agent returned plan: ['Create a Python file that prints \'Hello, Worl..."
     # Making this check more robust to minor string representation changes and truncation
-    assert "Planner Agent returned plan:" in captured.out
+    assert "Planner Agent returned plan:" in log_text
     # Check for the beginning of the task description, which should not be truncated.
-    assert "[\"Create a Python file that prints 'Hello, W" in captured.out
+    assert "[\"Create a Python file that prints 'Hello, W" in log_text
 
     # Check for coder log
     # Example: "Workshop Manager: Coder Agent completed. Code path: ..., Message: Successfully created main.py..."
-    assert "Coder Agent completed." in captured.out
-    assert f"Code path: {expected_file_path}" in captured.out
-    assert "Successfully created main.py" in captured.out # Check for coder success message
+    assert "Coder Agent completed." in log_text
+    assert f"Code path: {expected_file_path}" in log_text
+    assert "Successfully created main.py" in log_text # Check for coder success message
 
     # Check for auditor log (actual auditor is used)
     # Example: "Workshop Manager: Auditor Agent reported: AuditStatus.SUCCESS - Syntax OK."
-    assert "Auditor Agent reported:" in captured.out
-    assert f"{AuditStatus.SUCCESS.value}" in captured.out # Check for SUCCESS status
-    assert "Syntax OK." in captured.out # Check for auditor success message
+    assert "Auditor Agent reported:" in log_text
+    assert f"{AuditStatus.SUCCESS.value}" in log_text # Check for SUCCESS status
+    assert "Syntax OK." in log_text # Check for auditor success message
 
     assert (
         f"===== V1 Workflow for Commission: {unique_commission_id} Completed Successfully ====="
-        in captured.out
+        in log_text
     )
 
 
@@ -132,7 +136,8 @@ def test_e2e_audit_failure_syntax_error(
     manager_v1,
     unique_commission_id,
     auto_cleanup_commission_dir,
-    capsys,
+    caplog,
+    capsys,  # Added capsys back
     # We need to mock the Coder to produce bad code for this test
     # Or, have a specific plan that the V1 Coder interprets as "make bad code"
     # For true E2E, it's better if the Planner can instruct this.
@@ -182,7 +187,10 @@ def test_e2e_audit_failure_syntax_error(
     # Alternative: monkeypatch.setattr(artisans, "initialize_coder_agent_v1", mock_initialize_coder_agent_v1)
     # but workshop_manager has its own import.
 
+    # but workshop_manager has its own import.
+
     # Run the commission and expect an exception
+    caplog.set_level(logging.INFO) # Set overall level for caplog to capture INFO from all relevant loggers
     with pytest.raises(Exception) as excinfo:
         manager_v1.run_v1_commission(user_prompt, unique_commission_id)
 
@@ -193,32 +201,38 @@ def test_e2e_audit_failure_syntax_error(
     assert "Syntax error:" in str(excinfo.value) # From initialize_auditor_agent_v1
 
     # 2. Check logs
-    captured = capsys.readouterr()
+    log_text = caplog.text # Use caplog.text
+    # The print from the mock coder will still go to stdout/stderr if not configured otherwise
+    captured_stdout_stderr = capsys.readouterr()
+
     assert (
         f"===== Starting V1 Workflow for Commission: {unique_commission_id} ====="
-        in captured.out
+        in log_text # Check against log_text
     )
     # Planner log will be for the generic plan for "Create a python program with a syntax error."
-    assert "Planner Agent returned plan:" in captured.out
+    assert "Planner Agent returned plan:" in log_text # Check against log_text
 
-    # Coder log (from the mock)
-    assert "MOCK initialize_coder_agent_v1 called" in captured.out
-    assert f"Coder Agent completed. Code path: {bad_code_file_path}" in captured.out
-    assert "Coder intentionally produced code with syntax error (mocked)." in captured.out
+    # Coder log (from the mock - this part is tricky as the mock uses print)
+    # The "MOCK initialize_coder_agent_v1 called..." message from the mock coder's print()
+    # will be in captured_stdout_stderr.out, not caplog.text.
+    assert "MOCK initialize_coder_agent_v1 called" in captured_stdout_stderr.out
+    # The WorkshopManager's log about the coder completing will be in caplog.text
+    assert f"Coder Agent completed. Code path: {bad_code_file_path}" in log_text
+    assert "Coder intentionally produced code with syntax error (mocked)." in log_text
 
 
     # Auditor log should show failure
-    assert "Auditor Agent reported:" in captured.out
-    assert f"{AuditStatus.FAILURE.value}" in captured.out
+    assert "Auditor Agent reported:" in log_text # Check against log_text
+    assert f"{AuditStatus.FAILURE.value}" in log_text # Check against log_text
     # Example from auditor: "Syntax error: Missing parentheses in call to 'print'. Did you mean print(...)? (<unknown>, line 1)"
-    assert "Syntax error" in captured.out # Actual error message from auditor
+    assert "Syntax error" in log_text # Actual error message from auditor (in log_text)
 
     assert (
-        f"Commission '{unique_commission_id}' failed audit." in captured.out
+        f"Commission '{unique_commission_id}' failed audit." in log_text # Check against log_text
     )
     assert (
         f"===== V1 Workflow for Commission: {unique_commission_id} Completed Successfully ====="
-        not in captured.out
+        not in log_text # Check against log_text
     )
 
     # Restore original coder if other tests in the same session need it
