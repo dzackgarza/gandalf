@@ -11,9 +11,12 @@ the creation process.
 
 import logging
 from pathlib import Path
+from typing import Optional, Dict, Any # Added Optional, Dict, Any
 
-# from typing import Optional, Dict # No longer used in V1
 # from datetime import datetime, timezone # No longer used in V1
+
+# Import the LLMProviderManager
+from gandalf_workshop.llm_provider_manager import LLMProviderManager
 
 # Import the mock artisan crew and data models
 from gandalf_workshop.artisan_guildhall.artisans import (
@@ -38,14 +41,27 @@ class WorkshopManager:
     """
     The Workshop Manager directs the V1 workflow of the Gandalf workshop,
     sequentially invoking Planner, Coder, and Auditor agents.
+    It now also initializes and uses an LLMProviderManager to configure LLMs.
     """
 
-    def __init__(self):
+    def __init__(self, preferred_llm_provider: Optional[str] = None):
         """
         Initializes the Workshop Manager for V1.
+        It also initializes the LLMProviderManager to find a working LLM.
+        Args:
+            preferred_llm_provider (Optional[str]): The name of the preferred LLM provider.
         """
-        # For V1, initialization is simple.
-        # Future versions might load configurations or connect to agent frameworks.
+        logger.info("Workshop Manager (V1) initializing...")
+        self.llm_provider_manager = LLMProviderManager()
+        self.llm_config: Optional[Dict[str, Any]] = self.llm_provider_manager.get_llm_provider(
+            preferred_provider=preferred_llm_provider
+        )
+
+        if not self.llm_config:
+            logger.error("Workshop Manager: CRITICAL - No operational LLM provider found. Cannot proceed with commissions.")
+            # This state should ideally prevent commission processing.
+        else:
+            logger.info(f"Workshop Manager: Successfully configured LLM provider: {self.llm_config.get('provider_name', 'Unknown')}")
         logger.info("Workshop Manager (V1) initialized.")
 
     def run_v1_commission(
@@ -62,9 +78,14 @@ class WorkshopManager:
         logger.info(f"===== Starting V1 Workflow for Commission: {commission_id} =====")
         logger.info(f"User Prompt: {user_prompt}")
 
+        if not self.llm_config:
+            logger.error(f"Workshop Manager: Cannot run commission '{commission_id}'. No LLM provider configured during initialization.")
+            raise ConnectionError("LLM provider not available. Commission cannot be processed.")
+
         # 1. Call Planner Agent
-        logger.info(f"Workshop Manager: Invoking Live Planner Agent for '{commission_id}'.") # Log message updated
-        plan_output = initialize_live_planner_agent(user_prompt, commission_id) # Function call updated
+        # Assuming Planner does not need LLM for V1. If it did, self.llm_config would be passed.
+        logger.info(f"Workshop Manager: Invoking Planner Agent for '{commission_id}'.")
+        plan_output = initialize_planner_agent_v1(user_prompt, commission_id)
         # Ensure the log statement below adheres to line length
         plan_tasks_str = str(plan_output.tasks)
         if len(plan_tasks_str) > 50:  # Arbitrary short length for log
@@ -81,6 +102,7 @@ class WorkshopManager:
             plan_input=plan_output,
             commission_id=commission_id,
             output_target_dir=commission_specific_work_dir,
+            llm_config=self.llm_config # Pass the LLM configuration to the Coder
         )
         logger.info(
             f"Workshop Manager: Live Coder Agent completed. Code path: {code_output.code_path}, Message: {code_output.message}" # Log updated
@@ -93,9 +115,10 @@ class WorkshopManager:
             error_message = code_output.message or f"Live Coder Agent was supposed to create a file at {code_output.code_path} but it was not found or is not a file."
             raise FileNotFoundError(error_message)
 
-        # 3. Call Syntax Auditor Agent (Pre-check)
-        logger.info(f"Workshop Manager: Invoking Syntax Auditor Agent for '{commission_id}'.")
-        syntax_audit_output = initialize_auditor_agent_v1(
+        # 3. Call Auditor Agent
+        # Assuming Auditor does not need LLM for V1.
+        logger.info(f"Workshop Manager: Invoking Auditor Agent for '{commission_id}'.")
+        audit_output = initialize_auditor_agent_v1(
             code_input=code_output, commission_id=commission_id
         )
         logger.info(
