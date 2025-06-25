@@ -17,8 +17,8 @@ from pathlib import Path
 
 # Import the mock artisan crew and data models
 from gandalf_workshop.artisan_guildhall.artisans import (
-    initialize_planner_agent_v1,
-    initialize_coder_agent_v1,
+    initialize_live_planner_agent,
+    initialize_live_coder_agent, # Changed from initialize_coder_agent_v1
     initialize_auditor_agent_v1,
 )
 
@@ -62,8 +62,8 @@ class WorkshopManager:
         logger.info(f"User Prompt: {user_prompt}")
 
         # 1. Call Planner Agent
-        logger.info(f"Workshop Manager: Invoking Planner Agent for '{commission_id}'.")
-        plan_output = initialize_planner_agent_v1(user_prompt, commission_id)
+        logger.info(f"Workshop Manager: Invoking Live Planner Agent for '{commission_id}'.") # Log message updated
+        plan_output = initialize_live_planner_agent(user_prompt, commission_id) # Function call updated
         # Ensure the log statement below adheres to line length
         plan_tasks_str = str(plan_output.tasks)
         if len(plan_tasks_str) > 50:  # Arbitrary short length for log
@@ -75,24 +75,22 @@ class WorkshopManager:
         commission_specific_work_dir = (
             Path("outputs") / commission_id
         )
-        # The Coder agent (initialize_coder_agent_v1) is responsible for creating
-        # this directory if it doesn't exist.
-        code_output = initialize_coder_agent_v1(
+        # The Coder agent will create this directory if it doesn't exist.
+        code_output = initialize_live_coder_agent( # Function call updated
             plan_input=plan_output,
             commission_id=commission_id,
             output_target_dir=commission_specific_work_dir,
         )
         logger.info(
-            f"Workshop Manager: Coder Agent completed. Code path: {code_output.code_path}, Message: {code_output.message}"
+            f"Workshop Manager: Live Coder Agent completed. Code path: {code_output.code_path}, Message: {code_output.message}" # Log updated
         )
-        if not code_output.code_path.exists():
-            # This case should ideally be handled by the Coder agent returning an error CodeOutput
-            # or raising an exception that WorkshopManager catches.
-            # For now, an explicit check.
-            logger.error(f"Coder Agent failed to create file at {code_output.code_path}")
-            raise FileNotFoundError(
-                f"Coder Agent was supposed to create a file at {code_output.code_path} but it was not found."
-            )
+        # It's possible the live agent returns the directory path on certain errors,
+        # so check if the path is a file and exists.
+        if not code_output.code_path.is_file() or not code_output.code_path.exists():
+            logger.error(f"Live Coder Agent failed to create a valid code file at {code_output.code_path}. Message: {code_output.message}")
+            # Consider the message from CodeOutput to make the error more informative
+            error_message = code_output.message or f"Live Coder Agent was supposed to create a file at {code_output.code_path} but it was not found or is not a file."
+            raise FileNotFoundError(error_message)
 
         # 3. Call Auditor Agent
         logger.info(f"Workshop Manager: Invoking Auditor Agent for '{commission_id}'.")
