@@ -1,0 +1,12 @@
+{
+  "commission_id": "error_test_commission",
+  "blueprint_path": "/tmp/pytest-of-swebot/pytest-3/test_initialize_pm_review_crew0/blueprints/non_existent_bp.yaml",
+  "blueprint_version_reviewed": "0.0",
+  "review_timestamp": "2025-06-25T04:59:17.611759Z",
+  "pm_agent_id": "Mock_PM_Agent_v0.1",
+  "decision": "REVISION_REQUESTED",
+  "rationale": "Mock PM Review: Error reading blueprint. Defaulting to REVISION_REQUESTED. Error: [Errno 2] No such file or directory: '/tmp/pytest-of-swebot/pytest-3/test_initialize_pm_review_crew0/blueprints/non_existent_bp.yaml' (See logs for details)",
+  "suggested_focus_areas_for_revision": [
+    "project_summary"
+  ]
+}

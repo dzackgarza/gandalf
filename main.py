@@ -54,27 +54,22 @@ def main():
     # Metaphor: The Manager is instructed to oversee the entire commission from
     #           start to finish, including all new review stages.
     try:
-        # Initialize WorkshopManager. Consider making max_pm_review_cycles configurable if needed.
-        manager = WorkshopManager(max_pm_review_cycles=3)
+        # Initialize WorkshopManager for V1.
+        manager = WorkshopManager()
 
-        success = manager.execute_full_commission_workflow(  # noqa: E501
+        # Call the V1 commission workflow.
+        # This method returns the path to the product on success or raises an exception on failure.
+        product_path = manager.run_v1_commission(
             user_prompt=user_prompt, commission_id=commission_id
         )
 
-        if success:
-            print(
-                (
-                    f"Gandalf Workshop: Commission '{commission_id}' processed "
-                    "successfully."
-                )
+        # If run_v1_commission completes without raising an exception, it's a success.
+        print(
+            (
+                f"Gandalf Workshop: Commission '{commission_id}' processed "
+                f"successfully. Product available at: {product_path}"
             )
-        else:
-            print(
-                (
-                    f"Gandalf Workshop: Commission '{commission_id}' failed or was "
-                    "halted during processing."
-                )
-            )
+        )
 
     except Exception as e:
         print(
