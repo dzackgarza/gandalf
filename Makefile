@@ -1,7 +1,8 @@
 # Makefile for the Gandalf Trust Framework
 
 # Ensure that PROMPT is set, but allow it to be overridden from the command line
-PROMPT ?= default_prompt
+PROMPT ?= a simple CLI tool that takes a name and prints a greeting
+AUDIT_APP_NAME ?= app
 
 # Default target
 .PHONY: default
