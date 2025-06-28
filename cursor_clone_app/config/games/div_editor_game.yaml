@@ -1,0 +1,158 @@
+game_name: "Markdown Div Editor"
+description: "A game to iteratively review and edit fenced div blocks in a Markdown document for syntax and semantics."
+
+handshake:
+  initial_prompt_template: |
+    We are about to start a game called '{{GAME_NAME}}'.
+    In this game, I will present you with content from a Markdown document, one 'div' block at a time.
+    For each div, we will go through two stages: Syntax Review and Semantic Review.
+
+    Rules:
+    1. I will provide you with the content of the current div and a list of choices.
+    2. You must respond by stating ONLY the ID of your chosen option (e.g., "a", "1"). For example, if your choice is 'a', your entire response should be 'a'.
+    3. If you choose to revise content, I will then prompt you for the revised text. You must provide the complete revised div content within <revision>...</revision> tags. For example: <revision>This is the new content.</revision>
+    4. If your choice or revision format is incorrect, I will re-prompt you. Making too many errors may end the game.
+
+    To confirm you understand these rules and the required response format for revisions, please respond now with the exact phrase:
+    "Understood. Ready to process divs."
+  llm_confirmation_response: "Understood. Ready to process divs."
+  max_attempts: 3
+
+game_rules:
+  max_invalid_choices_per_turn: 2
+  max_total_invalid_choices: 5
+
+initial_state: "InitializeGame"
+
+data_extraction:
+  source: "current_editor_tab"
+  extractor_action: "extract_fenced_divs"
+  store_as: "div_list"
+  # Example div syntax for extractor (e.g., ::: name ... ::: or <div>...</div>)
+  # For now, assume extractor handles simple <div> tags or a custom format.
+
+states:
+  InitializeGame:
+    on_enter_actions:
+      - "action_initialize_div_editor_game"
+    prompt_template: |
+      Initializing the Div Editor game...
+      Found {{num_divs}} divs to process.
+    choices:
+      - id: "continue"
+        description: "Start processing."
+        next_state: "CheckNextDiv"
+
+  CheckNextDiv:
+    on_enter_actions:
+      - "action_check_next_div"
+    prompt_template: |
+      Checking for next div...
+    choices:
+      - id: "has_more_divs"
+        next_state: "SyntaxReviewStage_Prompt"
+      - id: "no_more_divs"
+        next_state: "END_GAME_SUCCESS"
+
+  SyntaxReviewStage_Prompt:
+    on_enter_actions:
+      - "action_load_current_div_for_syntax_review"
+    prompt_template: |
+      {{error_message_block_if_any}}
+      Now in Syntax Review for Div '{{current_div_identifier}}' ({{current_div_index_display}} of {{total_divs}}).
+      Your role: Review the Markdown and mathematics syntax within this div.
+
+      Current Div Content:
+      ```markdown
+      {{current_div_content}}
+      ```
+
+      Your options:
+      (a) Revise this div's content for syntax.
+      (b) Approve syntax and proceed to Semantic Review for this div.
+      (c) Skip this div entirely and move to the next one (if any).
+      (d) End the game.
+
+      Please respond with 'a', 'b', 'c', or 'd'.
+    choices:
+      - id: "a"
+        description: "Revise this div's content for syntax."
+        next_state: "SyntaxReviewStage_WaitForRevision"
+      - id: "b"
+        description: "Approve syntax and proceed to Semantic Review."
+        next_state: "SemanticReviewStage_Prompt"
+      - id: "c"
+        description: "Skip this div and move to the next one."
+        action: "action_increment_div_index"
+        next_state: "CheckNextDiv"
+      - id: "d"
+        description: "End the game now."
+        next_state: "END_GAME_CANCELLED"
+    default_next_state_on_invalid_choice: "SyntaxReviewStage_Prompt"
+
+  SyntaxReviewStage_WaitForRevision:
+    prompt_template: |
+      {{error_message_block_if_any}}
+      You chose to revise Div '{{current_div_identifier}}' for syntax.
+      Please provide the complete revised content for this div within <revision>...</revision> tags.
+      Example: <revision>This is the *new* content with corrected syntax.</revision>
+    choices:
+      - id: "_data_input_"
+        description: "LLM provides revised content."
+        action: "action_process_syntax_revision"
+        next_state: "SyntaxReviewStage_Prompt"
+        expected_response_structure: "Content must be within <revision>...</revision> tags."
+    max_retries_for_structured_response: 2
+    default_next_state_on_invalid_choice: "SyntaxReviewStage_Prompt"
+
+
+  SemanticReviewStage_Prompt:
+    on_enter_actions:
+      - "action_load_current_div_for_semantic_review"
+    prompt_template: |
+      {{error_message_block_if_any}}
+      Syntax approved for Div '{{current_div_identifier}}'.
+      Now in Semantic Review for Div '{{current_div_identifier}}' ({{current_div_index_display}} of {{total_divs}}).
+      Your role: Review for clarity, cohesion, style, and overall meaning.
+
+      Current Div Content:
+      ```markdown
+      {{current_div_content}}
+      ```
+
+      Your options:
+      (a) Revise this div's content for semantics/style.
+      (b) Approve this div. It is ready for 'publication'.
+      (c) Go back to Syntax Review for this div.
+      (d) End the game.
+
+      Please respond with 'a', 'b', 'c', or 'd'.
+    choices:
+      - id: "a"
+        description: "Revise this div's content for semantics/style."
+        next_state: "SemanticReviewStage_WaitForRevision"
+      - id: "b"
+        description: "Approve this div. It is ready for 'publication'."
+        action: "action_finalize_div_and_increment_index"
+        next_state: "CheckNextDiv"
+      - id: "c"
+        description: "Go back to Syntax Review for this div."
+        next_state: "SyntaxReviewStage_Prompt"
+      - id: "d"
+        description: "End the game now."
+        next_state: "END_GAME_CANCELLED"
+    default_next_state_on_invalid_choice: "SemanticReviewStage_Prompt"
+
+  SemanticReviewStage_WaitForRevision:
+    prompt_template: |
+      {{error_message_block_if_any}}
+      You chose to revise Div '{{current_div_identifier}}' for semantics/style.
+      Please provide the complete revised content for this div within <revision>...</revision> tags.
+    choices:
+      - id: "_data_input_"
+        description: "LLM provides revised content."
+        action: "action_process_semantic_revision"
+        next_state: "SemanticReviewStage_Prompt"
+        expected_response_structure: "Content must be within <revision>...</revision> tags."
+    max_retries_for_structured_response: 2
+    default_next_state_on_invalid_choice: "SemanticReviewStage_Prompt"
