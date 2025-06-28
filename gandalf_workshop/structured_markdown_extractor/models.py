@@ -4,10 +4,10 @@ import re
 from datetime import datetime
 
 class PaperSource(BaseModel):
-    file_path: str = Field(..., description="REQUIRED: Source file")
+    file_path: str = Field(..., min_length=1, description="REQUIRED: Source file")
     start_line: int = Field(..., description="REQUIRED: Exact start line")
     end_line: int = Field(..., description="REQUIRED: Exact end line")
-    verbatim_content: str = Field(..., description="REQUIRED: Exact paper text\n[WORD-FOR-WORD content from paper - NEVER modify]")
+    verbatim_content: str = Field(..., min_length=1, description="REQUIRED: Exact paper text\n[WORD-FOR-WORD content from paper - NEVER modify]")
     latex_labels: Optional[List[str]] = Field(default_factory=list, description="OPTIONAL: LaTeX labels in paper")
     paper_citations: Optional[List[str]] = Field(default_factory=list, description="OPTIONAL: Citations used in paper")
 
@@ -18,22 +18,22 @@ class NotationExplanations(BaseModel):
     author_conventions: Optional[Dict[str, str]] = Field(default_factory=dict, description="OPTIONAL: Paper-specific conventions")
 
 class ThesisContent(BaseModel):
-    condensed_summary: str = Field(..., description="REQUIRED: Brief overview\n[1-2 paragraph summary of the logical unit]")
-    detailed_analysis: str = Field(..., description="REQUIRED: Comprehensive explanation\n[Detailed exposition suitable for thesis - make implicit assumptions explicit]")
-    expansion_notes: str = Field(..., description="REQUIRED: What needs expansion from paper\n[Specific areas where paper was brief due to space constraints]")
+    condensed_summary: str = Field(..., min_length=1, description="REQUIRED: Brief overview\n[1-2 paragraph summary of the logical unit]")
+    detailed_analysis: str = Field(..., min_length=1, description="REQUIRED: Comprehensive explanation\n[Detailed exposition suitable for thesis - make implicit assumptions explicit]")
+    expansion_notes: str = Field(..., min_length=1, description="REQUIRED: What needs expansion from paper\n[Specific areas where paper was brief due to space constraints]")
 
 class LineByLineProofStep(BaseModel):
     step: int
-    statement: str = Field(..., description="[Mathematical statement for this step]")
-    justification: str = Field(..., description="[Complete justification with specific citations]")
+    statement: str = Field(..., min_length=1, description="[Mathematical statement for this step]")
+    justification: str = Field(..., min_length=1, description="[Complete justification with specific citations]")
     citations: List[str] = Field(default_factory=list, description="[Theorem X.Y in Paper1999, Stacks Tag 02AB, Mathlib theorem_name]")
-    assumptions: str = Field(..., description="[Any assumptions used in this step]")
+    assumptions: str = Field(..., min_length=1, description="[Any assumptions used in this step]")
 
 class ProofDevelopment(BaseModel):
-    paper_proof_content: str = Field(..., description="REQUIRED: What paper provided\n[Exact proof from paper, often brief or sketched]")
-    thesis_proof_outline: str = Field(..., description="REQUIRED: Structured proof plan\n[Step-by-step outline for complete thesis proof]")
-    rigorous_proof: str = Field(..., description="REQUIRED: Complete proof for thesis\n[Fully detailed proof suitable for thesis examination]")
-    line_by_line_proof: List[LineByLineProofStep] = Field(..., description="REQUIRED: Formalization-ready proof")
+    paper_proof_content: str = Field(..., min_length=1, description="REQUIRED: What paper provided\n[Exact proof from paper, often brief or sketched]")
+    thesis_proof_outline: str = Field(..., min_length=1, description="REQUIRED: Structured proof plan\n[Step-by-step outline for complete thesis proof]")
+    rigorous_proof: str = Field(..., min_length=1, description="REQUIRED: Complete proof for thesis\n[Fully detailed proof suitable for thesis examination]")
+    line_by_line_proof: List[LineByLineProofStep] = Field(..., min_length=1, description="REQUIRED: Formalization-ready proof. Must have at least one step.") # Added min_length for list
     proof_references: List[str] = Field(default_factory=list, description="REQUIRED: Sources needed for proof")
 
 class SuspicionScores(BaseModel):
@@ -45,18 +45,18 @@ class SuspicionScores(BaseModel):
     expansion_quality: float = Field(..., ge=0.0, le=1.0, description="Thesis expansion appropriateness")
 
 class Audit(BaseModel):
-    audit_id: str = Field(..., description="REQUIRED: Unique audit identifier")
+    audit_id: str = Field(..., min_length=1, description="REQUIRED: Unique audit identifier")
     auditor_role: Literal["extractor", "auditor"] = Field(..., description="REQUIRED: extractor|auditor")
     audit_date: datetime = Field(..., description="REQUIRED: ISO timestamp")
     suspicion_scores: SuspicionScores
-    audit_notes: str = Field(..., description="REQUIRED: Auditor comments\n[Comments about the extraction/verification process]")
+    audit_notes: str = Field(..., min_length=1, description="REQUIRED: Auditor comments\n[Comments about the extraction/verification process]")
     evidence_gathered: Optional[str] = Field(default="", description="OPTIONAL: Evidence for score changes\n[Details of verification work performed]")
 
 class LogicalUnit(BaseModel):
     # === UNIT IDENTIFICATION ===
-    unit_id: str = Field(..., description="REQUIRED: snake_case ID")
+    unit_id: str = Field(..., min_length=1, description="REQUIRED: snake_case ID")
     unit_type: Literal["theorem", "lemma", "definition", "proposition", "example", "remark"] = Field(..., description="REQUIRED: theorem|lemma|definition|proposition|example|remark")
-    thesis_title: str = Field(..., description="REQUIRED: Descriptive Title for Thesis Clear heading for thesis")
+    thesis_title: str = Field(..., min_length=1, description="REQUIRED: Descriptive Title for Thesis Clear heading for thesis")
     dependencies: List[str] = Field(default_factory=list, description="REQUIRED: Prerequisites (empty array if none)")
 
     # === SOURCE TRACEABILITY ===

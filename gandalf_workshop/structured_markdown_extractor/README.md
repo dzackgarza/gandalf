@@ -180,6 +180,8 @@ python -m gandalf_workshop.structured_markdown_extractor.cli [COMMAND] [OPTIONS]
     ```
     When processing TeX files, the `paper_source.verbatim_content`, `start_line`, and `end_line` fields in the YAML will refer to the intermediate Markdown/text representation that the LLM processes, not the original TeX file. The `paper_source.file_path` will correctly point to your original `.tex` file. The quality of TeX conversion (Pandoc vs. `pylatexenc` fallback) can impact the LLM's ability to extract information accurately.
 
+    **Note on Simulated Responses for Testing**: For development purposes without requiring live API keys, the file `llm_utils.py` contains a simulation block. If you are processing `sample_math_article.md` (from `tests/sample_markdown/`) and this block is active, you will receive a pre-defined simulated response instead of a live LLM call. To perform a true live test with this specific file, you may need to temporarily comment out or disable this simulation block in `llm_utils.py`.
+
 ## Development & Testing
 
 -   Unit tests are located in the `tests/` subdirectory.

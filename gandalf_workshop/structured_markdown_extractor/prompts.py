@@ -8,84 +8,96 @@ from textwrap import dedent
 
 # Let's define the core parts of the YAML structure as a string to be included in the prompt.
 # This should be kept in sync with your Pydantic models.
-# Note: In a real-world scenario with very large schemas, you might provide a URL
-# or a summarized version. For this task, including it directly is feasible.
 
 CANONICAL_YAML_STRUCTURE_SNIPPET = """
 The output MUST be a YAML object with a single top-level key `logical_units`.
 `logical_units` is a list of objects, each representing a single logical unit.
+ALL REQUIRED fields MUST be present and contain meaningful, non-empty content unless the schema explicitly allows them to be empty (e.g., an empty list `[]` for `dependencies` if none). Do not use placeholder text like "[Summary]" for required multi-line string fields; generate actual content.
 
 Each logical unit object MUST have the following structure:
 
   - # === UNIT IDENTIFICATION ===
     unit_id: "unique_snake_case_identifier"        # REQUIRED: snake_case ID (e.g., "enriques_surface_definition")
     unit_type: "theorem"                           # REQUIRED: one of [theorem, lemma, definition, proposition, example, remark]
-    thesis_title: "Descriptive Title for Thesis"   # REQUIRED: Clear heading for thesis
-    dependencies: ["unit_id_1", "unit_id_2"]       # REQUIRED: List of unit_ids this unit depends on (empty list if none)
+    thesis_title: "Descriptive Title for Thesis"   # REQUIRED: Clear heading for thesis. Must be a non-empty string.
+    dependencies: ["unit_id_1", "unit_id_2"]       # REQUIRED: List of unit_ids this unit depends on (empty list `[]` if none)
 
     # === SOURCE TRACEABILITY ===
     paper_source:
-      file_path: "source_markdown_filename.md"     # REQUIRED: The filename of the input markdown document
-      start_line: 123                              # REQUIRED: Exact start line in the source markdown (estimate if not precise)
-      end_line: 145                                # REQUIRED: Exact end line in the source markdown (estimate if not precise)
-      verbatim_content: |                          # REQUIRED: Exact markdown text for this logical unit
-        [WORD-FOR-WORD content from the markdown segment corresponding to this unit - NEVER modify]
-      latex_labels: ["label1", "label2"]           # OPTIONAL: Any LaTeX labels found within this verbatim content
-      paper_citations: ["CiteKey1999"]             # OPTIONAL: Any citation keys (e.g., BibTeX keys) found
+      file_path: "source_markdown_filename.md"     # REQUIRED: The filename of the input document.
+      start_line: 123                              # REQUIRED: Estimated start line in the (potentially converted) markdown.
+      end_line: 145                                # REQUIRED: Estimated end line in the (potentially converted) markdown.
+      verbatim_content: |                          # REQUIRED: Exact markdown text for this logical unit. Must be non-empty.
+        This is an example of verbatim content that would be extracted for a logical unit.
+        It should be copied word-for-word from the (potentially converted) input.
+      latex_labels: ["label1", "label2"]           # OPTIONAL: Any LaTeX labels found within this verbatim content (e.g. ["thm:main", "eq:identity"])
+      paper_citations: ["CiteKey1999"]             # OPTIONAL: Any citation keys (e.g. BibTeX keys like ["Author2021"]) found
 
     # === NOTATION TRANSLATION ===
-    notation_explanations:                         # REQUIRED: Document all paper notation relevant to this unit
-      latex_macros:                                # REQUIRED: (can be empty if none relevant to this specific unit)
-        "\\\\cL": "\\\\mathcal{L} (script L - likely line bundle or sheaf)"
-      mathematical_context:                        # REQUIRED: (can be empty if none relevant to this specific unit)
-        "Z": "Scheme or variety (as used in this unit's context)"
-      ambiguous_notation:                          # OPTIONAL
-        "H^2": "Could be cohomology or Hilbert scheme - verify"
-      author_conventions:                          # OPTIONAL
-        "convention_name": "Description of convention"
+    notation_explanations:                        # REQUIRED: Document all paper notation relevant to THIS unit.
+      latex_macros:                               # REQUIRED: (can be empty dict `{}` if none relevant)
+        "\\\\mathcal{F}_b": "Represents a Foo Bar structure."
+        "\\\\mathbb{K}": "Represents a field."
+      mathematical_context:                       # REQUIRED: (can be empty dict `{}` if none relevant)
+        "S": "The non-empty set component of a Foo Bar, as used in this unit's verbatim_content."
+        "lambda_0": "The base foo element in a Foo Bar."
+      ambiguous_notation:                         # OPTIONAL (empty dict `{}` if none)
+        "phi": "A canonical map, its specific definition needs to be clarified from context."
+      author_conventions:                         # OPTIONAL (empty dict `{}` if none)
+        "foo_bar_tuple_order": "The paper uses (S, op1, op2, base) for Foo Bar tuples."
 
     # === THESIS EXPANSION ===
-    thesis_content:
-      condensed_summary: |                         # REQUIRED: Brief overview (1-2 paragraphs) of this logical unit
-        [Summary]
-      detailed_analysis: |                         # REQUIRED: Comprehensive explanation for a thesis
-        [Detailed analysis]
-      expansion_notes: |                           # REQUIRED: What needs expansion from the paper's version of this unit
-        [Expansion notes]
+    thesis_content:                               # REQUIRED: All sub-fields must be non-empty, well-developed textual content.
+      condensed_summary: |                        # REQUIRED: Brief overview (1-2 paragraphs) of this logical unit.
+        Example: This unit defines the Foo Bar, a mathematical structure consisting of a set, two operations (foo-addition and bar-multiplication over a field K), and a base foo element. These components must satisfy specific axioms.
+      detailed_analysis: |                        # REQUIRED: Comprehensive explanation suitable for a thesis.
+        Example: The Foo Bar, denoted as $\mathcal{F}_b$, is formally defined as a tuple $(\mathcal{S}, \oplus, \otimes, \lambda_0)$. The set $\mathcal{S}$ provides the domain for the structure. Foo-addition, $\oplus$, is an internal binary operation on $\mathcal{S}$, required to be associative. Bar-multiplication, $\otimes$, defines a scalar multiplication action of the field $\mathbb{K}$ on the set $\mathcal{S}$. The element $\lambda_0 \in \mathcal{S}$ serves as a foundational point or origin for constructions within the Foo Bar. The interplay of these components under Axioms F1-F3 gives rise to the unique characteristics of Foo Bars, distinguishing them from other algebraic structures like groups or vector spaces by their specific operational semantics and the role of the base foo.
+      expansion_notes: |                          # REQUIRED: What needs expansion from the paper's version of this unit for a thesis.
+        Example: For a thesis, Axioms F1-F3 must be explicitly stated and their implications discussed. The relationship between Foo Bars and existing algebraic structures (e.g., modules, algebras) should be elaborated. Provide concrete examples of Foo Bars over different fields (e.g., $\mathbb{R}$, $\mathbb{C}$, $\mathbb{F}_p$) to illustrate varying properties. Discuss the motivation behind the 'base foo' concept.
 
-    # === PROOF OBJECTS (Required for unit_type: theorem|lemma|proposition only) ===
-    proof_development:                             # Null if not theorem, lemma, or proposition
-      paper_proof_content: |                       # REQUIRED if proof_development is present
-        [Exact proof from paper, if any, for this unit]
-      thesis_proof_outline: |                      # REQUIRED if proof_development is present
-        [Step-by-step outline for complete thesis proof]
-      rigorous_proof: |                            # REQUIRED if proof_development is present
-        [Fully detailed proof suitable for thesis examination]
-      line_by_line_proof:                          # REQUIRED if proof_development is present
+    # === PROOF OBJECTS (Required for unit_type: theorem|lemma|proposition only. Otherwise, this whole `proof_development` key should be null or absent) ===
+    proof_development:                            # Null or absent if not a proof-bearing unit type.
+      paper_proof_content: |                      # REQUIRED if proof_development is present. Non-empty.
+        Example: The paper states: "The proof relies on Zorn's Lemma and the Bar Homomorphism Lemma."
+      thesis_proof_outline: |                     # REQUIRED if proof_development is present. Non-empty.
+        Example:
+        1. Define the set of proto-Baz Foos and establish a partial ordering.
+        2. Apply Zorn's Lemma to show existence of a maximal element.
+        3. Prove this maximal element is a Baz Foo, $\beta_c$.
+        4. For uniqueness, assume two Baz Foos $\beta_1^*$ and $\beta_2^*$.
+        5. Define Bar Homomorphisms and state the Bar Homomorphism Lemma.
+        6. Apply the lemma to show $\beta_1^* = \beta_2^*$.
+      rigorous_proof: |                           # REQUIRED if proof_development is present. Non-empty detailed proof.
+        Example: Let $P$ be the set of all proto-Baz Foos in $\mathcal{S}$, ordered by inclusion. $P$ is non-empty as... [continues for several paragraphs with full mathematical rigor] ...thus establishing $\beta_1^* = \beta_2^*$. Q.E.D.
+      line_by_line_proof:                         # REQUIRED if proof_development is present. Non-empty list.
         - step: 1
-          statement: "[Mathematical statement for this step]"
-          justification: "[Complete justification with specific citations]"
-          citations: ["Theorem X.Y in Paper1999", "Stacks Tag 02AB"]
-          assumptions: "[Any assumptions used in this step]"
-        # ... more steps
-      proof_references: ["Source1", "Source2"]     # REQUIRED if proof_development is present
+          statement: "Define $P = \{x \in \mathcal{S} \mid x \text{ is a proto-Baz Foo}\}$. Order $P$ by foo-inclusion $\preceq$."
+          justification: "Standard construction for applying Zorn's Lemma to existence proofs in algebraic structures."
+          citations: ["Abstract Algebra, Dummit and Foote, Ch. 7.4", "Internal Paper Definition 2.5 for proto-Baz Foo"]
+          assumptions: "The set $\mathcal{S}$ and its operations satisfy Foo Bar axioms F1-F3. Field $\mathbb{K}$ is algebraically closed, char 0."
+        - step: 2
+          statement: "Show every chain in $(P, \preceq)$ has an upper bound in $P$."
+          justification: "The union of a chain of proto-Baz Foos can be shown to be a proto-Baz Foo itself."
+          citations: [] # If justification is self-contained for this step based on prior definitions
+          assumptions: "Standard properties of set unions and defined properties of proto-Baz Foos."
+        # ... more steps for existence and uniqueness
+      proof_references: ["DummitAndFoote2004", "AppendixA_BarHomomorphisms"]     # REQUIRED if proof_development is present. List of key biblio references.
 
     # === VERIFICATION TRAIL ===
-    audits:                                        # REQUIRED: Must contain at least one audit entry
-      - audit_id: "extractor_initial_YYYYMMDDHHMMSS_randomsuffix" # REQUIRED: Unique audit identifier (append timestamp and random chars)
-        auditor_role: "extractor"                  # REQUIRED: "extractor"
-        audit_date: "YYYY-MM-DDTHH:MM:SSZ"         # REQUIRED: ISO timestamp of extraction
-        suspicion_scores:                          # REQUIRED
+    audits:                                       # REQUIRED: Must contain at least one audit entry.
+      - audit_id: "extractor_initial_YYYYMMDDHHMMSS_xyz" # REQUIRED: Unique ID (e.g., 'extractor_initial_' + timestamp + 3 random chars).
+        auditor_role: "extractor"                  # REQUIRED: Must be "extractor".
+        audit_date: "YYYY-MM-DDTHH:MM:SSZ"         # REQUIRED: Current ISO 8601 timestamp of extraction (e.g., "2024-07-28T12:30:00Z").
+        suspicion_scores:                          # REQUIRED. All scores must be 1.0 for initial extraction.
           source_fidelity: 1.0
           mathematical_accuracy: 1.0
           citation_validity: 1.0
           proof_correctness: 1.0
           formalization_readiness: 1.0
           expansion_quality: 1.0
-        audit_notes: |                            # REQUIRED
-          Initial extraction by LLM. All content generated based on the input document and instructions.
-          All fields require human verification.
-        evidence_gathered: ""                     # OPTIONAL: (leave empty for initial extraction)
+        audit_notes: |                             # REQUIRED. Non-empty.
+          Initial extraction by LLM. All content generated based on the input document and system instructions. All fields require human verification and subsequent audit.
+        evidence_gathered: ""                      # OPTIONAL: (leave empty string "" for initial extraction)
 """
 
 GRANULARITY_GUIDELINES_SNIPPET = """
