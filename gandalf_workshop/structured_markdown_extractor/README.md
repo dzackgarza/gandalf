@@ -1,11 +1,14 @@
-# Structured Markdown Extractor
+# Structured Content Extractor (Markdown & TeX)
 
-This CLI application extracts structured logical units from mathematics markdown files using a user-configurable LLM provider. It aims to transform dense research paper content (in markdown format) into a structured YAML output suitable for further processing, such as thesis generation.
+This CLI application extracts structured logical units from mathematics documents (Markdown or TeX files) using a user-configurable LLM provider. It aims to transform dense research paper content into a structured YAML output suitable for further processing, such as thesis generation.
 
 ## Features
 
--   Parses markdown files to identify and extract logical units (definitions, theorems, examples, etc.).
--   Utilizes LLMs (e.g., OpenAI GPT models, Azure OpenAI) for content analysis and structuring.
+-   Parses Markdown files directly.
+-   Converts TeX files to a processable plain text/Markdown format before extraction.
+    -   Prioritizes using **Pandoc** if available in the system PATH for high-quality TeX conversion.
+    -   Falls back to the **pylatexenc** Python library for TeX to plain text conversion if Pandoc is not found or fails.
+-   Utilizes LLMs (e.g., OpenAI GPT models, Azure OpenAI) for content analysis and structuring based on the (potentially converted) text.
 -   Enforces a strict YAML output format defined by Pydantic models.
 -   Supports configurable LLM providers and models.
 -   Includes retry logic for LLM calls to improve robustness.
@@ -18,7 +21,14 @@ Ensure all dependencies are installed from the main `requirements.txt` file in t
 ```bash
 pip install -r requirements.txt
 ```
-This project specifically uses `typer`, `pydantic`, `openai`, `instructor`, `pyyaml`, and `python-dotenv`.
+This project specifically uses `typer`, `pydantic`, `openai`, `instructor`, `pyyaml`, `python-dotenv`, and `pylatexenc`.
+
+### System Dependencies (Optional but Recommended for TeX)
+
+*   **Pandoc**: For the best TeX to Markdown conversion quality, installing Pandoc is highly recommended. The tool will automatically use it if found in your system's PATH.
+    *   Installation: Visit [https://pandoc.org/installing.html](https://pandoc.org/installing.html). On Debian/Ubuntu, you might use `sudo apt-get install pandoc`.
+
+    If Pandoc is not found, the tool will fall back to using the `pylatexenc` Python library for a more basic TeX to plain text conversion.
 
 ### API Keys and Configuration
 
@@ -71,10 +81,10 @@ python -m gandalf_workshop.structured_markdown_extractor.cli [COMMAND] [OPTIONS]
 1.  **`extract`**: Extracts logical units from a markdown file.
 
     ```bash
-    python -m gandalf_workshop.structured_markdown_extractor.cli extract [MARKDOWN_FILE_PATH] [OPTIONS]
+    python -m gandalf_workshop.structured_markdown_extractor.cli extract [FILE_PATH] [OPTIONS]
     ```
     **Arguments**:
-    *   `MARKDOWN_FILE_PATH`: Path to the input markdown file.
+    *   `FILE_PATH`: Path to the input Markdown (.md) or TeX (.tex) file.
 
     **Options**:
     *   `--output, -o PATH`: Path to save the output YAML file. If not provided, prints to stdout.
@@ -168,6 +178,7 @@ python -m gandalf_workshop.structured_markdown_extractor.cli [COMMAND] [OPTIONS]
       # Potentially another unit for "This is a fundamental concept." if granularity is high
       # or if the LLM decides to make the introductory sentence its own unit.
     ```
+    When processing TeX files, the `paper_source.verbatim_content`, `start_line`, and `end_line` fields in the YAML will refer to the intermediate Markdown/text representation that the LLM processes, not the original TeX file. The `paper_source.file_path` will correctly point to your original `.tex` file. The quality of TeX conversion (Pandoc vs. `pylatexenc` fallback) can impact the LLM's ability to extract information accurately.
 
 ## Development & Testing
 

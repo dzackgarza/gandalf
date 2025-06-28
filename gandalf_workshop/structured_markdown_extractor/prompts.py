@@ -156,11 +156,17 @@ def get_system_prompt() -> str:
         You will be provided with the full markdown content and its filename.
         Ensure the `paper_source.file_path` correctly reflects the provided filename.
         Generate `audit_date` and `audit_id` dynamically for each unit's initial audit record.
+
+        You will be provided with the textual content to process (which will be in Markdown format, possibly converted from another source like LaTeX) and the original source filename.
+        The `paper_source.file_path` field in your YAML output MUST always refer to this original source filename.
+        The `verbatim_content`, `start_line`, and `end_line` fields under `paper_source` should refer to the processed Markdown content that you are directly analyzing.
+        If the original source was TeX, these line numbers will refer to the converted Markdown representation, not the original TeX file.
     """).strip()
 
-def get_user_prompt(markdown_content: str, source_filename: str) -> str:
+def get_user_prompt(markdown_content: str, source_filename: str) -> str: # markdown_content here is the content for LLM (already converted if original was TeX)
     return dedent(f"""
-        Please process the following markdown document titled '{source_filename}'.
+        Please process the following textual content from original source file '{source_filename}'.
+        The content below is in Markdown format (it may have been converted from another format like TeX).
         Extract all logical units according to the system instructions and guidelines.
         Output the result as a single YAML object adhering strictly to the specified format.
 

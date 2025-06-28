@@ -1,8 +1,9 @@
 from typing import Optional, List
 from .config import LLMConfig
-from .models import LogicalUnitsFile, LogicalUnit, ExtractionResult # Added ExtractionResult
+from .models import LogicalUnitsFile, LogicalUnit, ExtractionResult
 from .prompts import get_system_prompt, get_user_prompt
 from .llm_utils import call_llm_with_structured_output
+from .converters import convert_tex_to_markdown # Added converter import
 import yaml
 
 class MarkdownExtractor:
@@ -15,32 +16,49 @@ class MarkdownExtractor:
         """
         self.config = config if config is not None else LLMConfig()
 
-    def extract_logical_units_from_markdown(
+    def extract_logical_units_from_file_content(
         self,
-        markdown_content: str,
-        source_filename: str,
+        file_content: str,
+        source_filename: str, # This is the original filename, e.g., "document.tex" or "document.md"
         max_llm_retries: Optional[int] = None
     ) -> Optional[LogicalUnitsFile]:
         """
-        Extracts logical units from markdown content using an LLM.
+        Extracts logical units from file content (Markdown or TeX) using an LLM.
+        If TeX content is provided, it's first converted to Markdown/plain text.
 
         Args:
-            markdown_content: The markdown text to process.
-            source_filename: The original filename of the markdown document.
+            file_content: The raw text content of the file.
+            source_filename: The original filename of the document.
             max_llm_retries: Specific number of retries for this extraction call,
                              overriding the config's default if provided.
 
         Returns:
             A LogicalUnitsFile object containing the extracted units, or None on failure.
         """
-        if not markdown_content.strip():
-            print("Warning: Markdown content is empty or whitespace only. Skipping extraction.")
-            return LogicalUnitsFile(root=[]) # Return empty list container
+        if not file_content.strip():
+            print("Warning: File content is empty or whitespace only. Skipping extraction.")
+            return LogicalUnitsFile(root=[])
+
+        processed_content = file_content
+        is_tex = source_filename.lower().endswith(".tex")
+
+        if is_tex:
+            print(f"Detected TeX file: '{source_filename}'. Attempting conversion to Markdown/plain text...")
+            converted_text = convert_tex_to_markdown(file_content)
+            if converted_text is None:
+                print(f"Failed to convert TeX file '{source_filename}' to Markdown. Skipping extraction.")
+                return None
+            processed_content = converted_text
+            print(f"TeX file '{source_filename}' converted. Proceeding with extraction.")
+        else:
+            print(f"Processing Markdown file: '{source_filename}'.")
+
 
         system_prompt = get_system_prompt()
-        user_prompt = get_user_prompt(markdown_content, source_filename)
+        # User prompt should receive the processed content (Markdown) but refer to the original source filename
+        user_prompt = get_user_prompt(processed_content, source_filename)
 
-        print(f"Starting extraction for '{source_filename}' using model '{self.config.model_name}'...")
+        print(f"Starting LLM extraction for '{source_filename}' (using model '{self.config.model_name}')...")
 
         # The response_model tells instructor what Pydantic model to parse the LLM output into.
         # We now use ExtractionResult which has a `logical_units` field.

@@ -1,0 +1,33 @@
+\documentclass{article}
+\usepackage{amsmath}
+\title{Sample TeX Document}
+\author{Test Author}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This is an introduction section from a \LaTeX{} document.
+It includes some basic text and an inline mathematical expression like $E = mc^2$.
+
+\subsection{Theorem Example}
+Here is a simple theorem:
+\newtheorem{theorem}{Theorem}
+\begin{theorem}[Pythagorean Theorem]
+For a right-angled triangle, if $a$ and $b$ are the lengths of the two legs and $c$ is the length of the hypotenuse, then $a^2 + b^2 = c^2$.
+\label{thm:pythagorean}
+\end{theorem}
+
+The proof is well-known.
+
+\section{Another Section}
+This section contains a list:
+\begin{itemize}
+    \item Item 1
+    \item Item 2 with some \textbf{bold text}.
+\end{itemize}
+And an equation:
+\[ \int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2} \]
+
+\end{document}

@@ -27,7 +27,7 @@ This is a test.
 def mock_extractor_instance():
     mock_instance = MagicMock()
 
-    # Mock the extract_logical_units_from_markdown method
+    # Mock the extract_logical_units_from_file_content method
     # This is what the CLI's `extract` command will call
     mock_lu_file = LogicalUnitsFile(root=[
         LogicalUnit(
@@ -68,13 +68,13 @@ def test_cli_extract_success_stdout(mock_markdown_extractor_cls, mock_extractor_
 
     # Verify MarkdownExtractor was instantiated and its methods called
     mock_markdown_extractor_cls.assert_called_once() # With LLMConfig
-    mock_extractor_instance.extract_logical_units_from_markdown.assert_called_once_with(
-        markdown_content=sample_md_file.read_text(),
+    mock_extractor_instance.extract_logical_units_from_file_content.assert_called_once_with(
+        file_content=sample_md_file.read_text(), # Changed from markdown_content
         source_filename=sample_md_file.name,
         max_llm_retries=ANY # Default from LLMConfig, which is created with CLI args
     )
     mock_extractor_instance.units_to_yaml.assert_called_once_with(
-        mock_extractor_instance.extract_logical_units_from_markdown.return_value
+        mock_extractor_instance.extract_logical_units_from_file_content.return_value # Changed here
     )
 
 @patch('gandalf_workshop.structured_markdown_extractor.cli.MarkdownExtractor')
@@ -93,7 +93,7 @@ def test_cli_extract_success_file_output(mock_markdown_extractor_cls, mock_extra
 @patch('gandalf_workshop.structured_markdown_extractor.cli.MarkdownExtractor')
 def test_cli_extract_llm_failure(mock_markdown_extractor_cls, mock_extractor_instance, sample_md_file):
     # Simulate failure from the extractor's method
-    mock_extractor_instance.extract_logical_units_from_markdown.return_value = None
+    mock_extractor_instance.extract_logical_units_from_file_content.return_value = None # Changed here
     mock_markdown_extractor_cls.return_value = mock_extractor_instance
 
     result = runner.invoke(app, ["extract", str(sample_md_file)])
@@ -114,6 +114,39 @@ def test_cli_extract_file_not_found_xfail():
     # If Typer is fixed or behavior changes, this assertion might become more specific:
     assert "Invalid value" in result.stderr or result.stderr.strip() != ""
 
+@pytest.fixture
+def sample_tex_file(tmp_path: Path) -> Path:
+    tex_content = """
+\\documentclass{article}
+\\title{Test TeX}
+\\begin{document}
+Hello TeX world. $x=1$.
+\\end{document}
+"""
+    file_path = tmp_path / "sample.tex"
+    file_path.write_text(tex_content)
+    return file_path
+
+@patch('gandalf_workshop.structured_markdown_extractor.cli.MarkdownExtractor')
+def test_cli_extract_tex_success_stdout(mock_markdown_extractor_cls, mock_extractor_instance, sample_tex_file):
+    mock_markdown_extractor_cls.return_value = mock_extractor_instance
+
+    result = runner.invoke(app, ["extract", str(sample_tex_file)])
+
+    assert result.exit_code == 0, f"CLI Error: {result.stderr}"
+    assert "Starting extraction for" in result.stdout
+    assert "YAML Output:" in result.stdout
+    assert "unit_id: cli_test_unit" in result.stdout # From mock_extractor_instance.units_to_yaml
+
+    mock_markdown_extractor_cls.assert_called_once()
+    mock_extractor_instance.extract_logical_units_from_file_content.assert_called_once_with(
+        file_content=sample_tex_file.read_text(),
+        source_filename=sample_tex_file.name,
+        max_llm_retries=ANY
+    )
+    mock_extractor_instance.units_to_yaml.assert_called_once_with(
+        mock_extractor_instance.extract_logical_units_from_file_content.return_value
+    )
 
 @patch('gandalf_workshop.structured_markdown_extractor.cli.MarkdownExtractor')
 def test_cli_extract_with_llm_options(mock_markdown_extractor_cls, mock_extractor_instance, sample_md_file):

@@ -20,7 +20,7 @@ app = typer.Typer(
 def extract(
     markdown_file_path: Annotated[Path, typer.Argument(
         exists=True, file_okay=True, dir_okay=False, readable=True, resolve_path=True,
-        help="Path to the input markdown file."
+        help="Path to the input markdown (.md) or TeX (.tex) file."
     )],
     output_yaml_path: Annotated[Optional[Path], typer.Option(
         "--output", "-o",
@@ -97,10 +97,10 @@ def extract(
         typer.echo(f"Azure API Version: {llm_config.azure_api_version}")
 
 
-    logical_units_data = extractor.extract_logical_units_from_markdown(
-        markdown_content=markdown_content,
+    logical_units_data = extractor.extract_logical_units_from_file_content( # Renamed method
+        file_content=markdown_content, # Renamed parameter
         source_filename=markdown_file_path.name,
-        max_llm_retries=llm_config.max_retries # LLMConfig already incorporates CLI override if any
+        max_llm_retries=llm_config.max_retries
     )
 
     if logical_units_data:
